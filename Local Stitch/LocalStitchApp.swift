@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct PDF_CraftApp: App {
+struct LocalStitchApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
