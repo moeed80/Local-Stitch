@@ -4,6 +4,7 @@ import CryptoKit
 import UniformTypeIdentifiers
 import AppKit
 import Combine
+import OSLog
 
 // MARK: - 1. CORE APPARATUS DATA MODELS
 struct PDFFile: Identifiable, Equatable {
@@ -139,6 +140,7 @@ class PDFMergeEngine: ObservableObject {
     
     @Published var loadedFiles: [PDFFile] = []
     @Published var viewMode: AppViewMode = .empty
+    @Published var currentUIError: LocalStitchError? = nil
     @Published var insertManifestPages = false
     @Published var globalPasswordInput = ""
     
@@ -308,7 +310,11 @@ class PDFMergeEngine: ObservableObject {
     }
 
     /// Processes paths captured from system drag-and-drop events
+    /// Processes paths captured from system drag-and-drop events
     func handleDroppedURLs(_ urls: [URL]) {
+        // 1. System Log: Track that the OS securely handed off file paths to our engine
+        Logger.engine.info("Successfully received \(urls.count) drop targets.")
+        
         var newlyAddedFiles: [PDFFile] = []
         
         for url in urls {
@@ -328,6 +334,12 @@ class PDFMergeEngine: ObservableObject {
                     isLocked: fileIsEncrypted
                 )
                 newlyAddedFiles.append(discoveredFile)
+            } else {
+                // 2. System Log: Track exactly which document failed to load
+                Logger.engine.error("Failed to parse PDF document structure for: \(url.lastPathComponent). File may be corrupted.")
+                
+                // 3. User Alert: Trigger the visual popup notification in the app UI
+                self.currentUIError = .corruptedFile(url.lastPathComponent)
             }
         }
         
@@ -338,4 +350,23 @@ class PDFMergeEngine: ObservableObject {
         }
     }
     
+}
+
+enum LocalStitchError: LocalizedError, Identifiable {
+    case corruptedFile(String)
+    case writePermissionDenied
+    case genericMergeFailure(String)
+    
+    var id: String { errorDescription ?? "unknown" }
+    
+    var errorDescription: String? {
+        switch self {
+        case .corruptedFile(let fileName):
+            return "The file '\(fileName)' appears to be corrupted or isn't a structured PDF document."
+        case .writePermissionDenied:
+            return "Local Stitch doesn't have permission to write to your chosen directory. Check your Mac Sandbox file access rules."
+        case .genericMergeFailure(let message):
+            return "An unexpected error occurred during execution: \(message)"
+        }
+    }
 }

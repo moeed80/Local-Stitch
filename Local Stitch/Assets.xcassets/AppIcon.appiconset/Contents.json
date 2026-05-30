@@ -41,13 +41,13 @@
       "size" : "256x256"
     },
     {
-      "filename" : "local-stitch-icon 512.png",
+      "filename" : "local-stitch-512.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"
     },
     {
-      "filename" : "local-stitch-icon 1024.png",
+      "filename" : "local-stitch-1024.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"

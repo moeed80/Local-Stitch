@@ -33,6 +33,13 @@ struct ContentView: View {
             engine.handleDroppedURLs(droppedURLs)
             return true
         }
+        .alert(item: $engine.currentUIError) { error in
+                Alert(
+                    title: Text("Process Interrupted"),
+                    message: Text(error.errorDescription ?? "An unknown processing error occurred."),
+                    dismissButton: .default(Text("OK"))
+                )
+        }
     }
 }
 
