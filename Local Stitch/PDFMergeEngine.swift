@@ -325,13 +325,24 @@ class PDFMergeEngine: ObservableObject {
             guard url.pathExtension.lowercased() == "pdf" else { continue }
             
             if let pdfDocument = PDFDocument(url: url) {
-                let fileIsEncrypted = pdfDocument.isLocked
-                let pageCount = fileIsEncrypted ? nil : pdfDocument.pageCount
+                // Check if the PDF is password-encrypted
+                if pdfDocument.isLocked {
+                    // Log the warning behind the scenes
+                    Logger.engine.warning("Encountered password-encrypted file restriction for: \(url.lastPathComponent)")
+                    
+                    // Trigger the UI pop-up alert to notify the user
+                    self.currentUIError = .genericMergeFailure("The file '\(url.lastPathComponent)' is password-encrypted. Please remove the protection restriction before stitching.")
+                    
+                    continue // Skip this specific file and inspect the rest of the batch
+                }
+                
+                // If it isn't locked, proceed with parsing safely
+                let pageCount = pdfDocument.pageCount
                 
                 let discoveredFile = PDFFile(
                     url: url,
                     pageCount: pageCount,
-                    isLocked: fileIsEncrypted
+                    isLocked: false
                 )
                 newlyAddedFiles.append(discoveredFile)
             } else {

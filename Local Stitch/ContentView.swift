@@ -5,40 +5,36 @@ struct ContentView: View {
     @StateObject private var engine = PDFMergeEngine()
     
     var body: some View {
-        VStack(spacing: 0) {
-            headerComponent
-            Divider()
+        VStack(spacing: 0) { // spacing: 0 ensures the banner touches the list perfectly
             
-            ZStack {
-                switch engine.viewMode {
-                case .empty:
-                    emptyDropzoneComponent
-                case .activeList:
-                    fileListComponent
-                case .processing:
-                    processingComponent
-                case .success:
-                    successComponent
-                }
+            // 1. Mount your brand new custom Figma banner at the very top
+            Image("AppBanner")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 700, height: 80)
+                .clipped()
+            
+            // 2. Dynamically switch between the empty state and the active file list
+            if engine.loadedFiles.isEmpty {
+                emptyDropzoneComponent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                fileListComponent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(NSColor.windowBackgroundColor).opacity(0.3))
             
-            Divider()
-            footerControlComponent
+            // 3. Optional: If you have a bottom action bar/merge button, it goes here
+            // bottomActionBarComponent
         }
+        // 4. Lock down the final frame dimensions of the window execution canvas
         .frame(width: 700, height: 500)
-        .dropDestination(for: URL.self) { droppedURLs, location in
-            // Forwards captured system file paths to our driver engine instantly
-            engine.handleDroppedURLs(droppedURLs)
-            return true
-        }
+        // This is the error alert hook we wired up earlier!
         .alert(item: $engine.currentUIError) { error in
-                Alert(
-                    title: Text("Process Interrupted"),
-                    message: Text(error.errorDescription ?? "An unknown processing error occurred."),
-                    dismissButton: .default(Text("OK"))
-                )
+            Alert(
+                title: Text("Process Interrupted"),
+                message: Text(error.errorDescription ?? "An unknown processing error occurred."),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 }

@@ -13,5 +13,7 @@ struct LocalStitchApp: App {
         WindowGroup {
             ContentView()
         }
+        .windowResizability(.contentSize)
+        .windowStyle(.hiddenTitleBar)
     }
 }
