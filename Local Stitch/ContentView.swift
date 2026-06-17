@@ -316,7 +316,7 @@ extension ContentView {
                     .font(.system(size: 13, weight: .medium))
                     .disabled(engine.viewMode == .processing || engine.viewMode == .success)
                 
-                Text("Injects context cards containing timestamps, index, boundaries, and SHA-256 fingerprints before each document for seamless LLM/RAG parsing.")
+                Text("Adds a compilation summary plus per-document provenance, page ranges, PDF metadata, detected structure, and SHA-256 fingerprints for LLM/RAG parsing.")
                     .font(.system(size: 11, weight: .light))
                     .foregroundColor(.secondary)
                     .padding(.leading, 20)
@@ -331,7 +331,8 @@ extension ContentView {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.green)
                 } else {
-                    let manifestOverheadText = (engine.insertManifestPages && !engine.loadedFiles.isEmpty ? " (Includes \(engine.loadedFiles.count) manifest pages)" : "")
+                    let manifestPageCount = engine.loadedFiles.count + 1
+                    let manifestOverheadText = (engine.insertManifestPages && !engine.loadedFiles.isEmpty ? " (Includes \(manifestPageCount) manifest pages)" : "")
                     Text("Estimated Final Footprint: \(engine.estimatedPageCount) Pages" + manifestOverheadText)
                         .font(.system(size: 12, weight: engine.viewMode == .activeList && !engine.hasRemainingLockedFiles ? .bold : .regular))
                         .foregroundColor(engine.viewMode == .activeList && !engine.hasRemainingLockedFiles ? .primary : .secondary)
