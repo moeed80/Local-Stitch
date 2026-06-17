@@ -149,6 +149,7 @@ class PDFMergeEngine: ObservableObject {
     @Published var totalFileCount: Int = 0
     @Published var processingSubtext: String = ""
     @Published var generatedFilename: String = ""
+    @Published var passwordUnlockMessage: String = ""
     
     // Tracks the exact system storage path chosen by the user
     private var finalSavedURL: URL? = nil
@@ -163,6 +164,10 @@ class PDFMergeEngine: ObservableObject {
         loadedFiles.contains(where: { $0.isLocked && !$0.isUnlockedSuccessfully })
     }
     
+    var remainingLockedFileCount: Int {
+        loadedFiles.filter { $0.isLocked && !$0.isUnlockedSuccessfully }.count
+    }
+    
     func selectLocalFiles() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -171,43 +176,101 @@ class PDFMergeEngine: ObservableObject {
         panel.allowedContentTypes = [.pdf]
         
         if panel.runModal() == .OK {
-            var newlyAddedFiles: [PDFFile] = []
-            for url in panel.urls {
-                if (loadedFiles.count + newlyAddedFiles.count) >= 100 { break }
-                
-                if let pdfDocument = PDFDocument(url: url) {
-                    let fileIsEncrypted = pdfDocument.isLocked
-                    let pageCount = fileIsEncrypted ? nil : pdfDocument.pageCount
-                    
-                    let discoveredFile = PDFFile(
-                        url: url,
-                        pageCount: pageCount,
-                        isLocked: fileIsEncrypted
-                    )
-                    newlyAddedFiles.append(discoveredFile)
-                }
-            }
-            loadedFiles.append(contentsOf: newlyAddedFiles)
-            if !loadedFiles.isEmpty { viewMode = .activeList }
+            addPDFURLs(panel.urls)
         }
     }
     
     func checkPasswordUnlock() {
-        for index in loadedFiles.indices {
-            if loadedFiles[index].isLocked && !loadedFiles[index].isUnlockedSuccessfully {
-                if let pdfDocument = PDFDocument(url: loadedFiles[index].url) {
-                    if pdfDocument.unlock(withPassword: globalPasswordInput) {
-                        loadedFiles[index].isUnlockedSuccessfully = true
-                        loadedFiles[index].cachedPassword = globalPasswordInput
-                        loadedFiles[index].pageCount = pdfDocument.pageCount
-                    }
-                }
+        let password = globalPasswordInput
+        guard !password.isEmpty else { return }
+        
+        var unlockedCount = 0
+        
+        for index in loadedFiles.indices where loadedFiles[index].isLocked && !loadedFiles[index].isUnlockedSuccessfully {
+            if let pdfDocument = PDFDocument(url: loadedFiles[index].url), pdfDocument.unlock(withPassword: password) {
+                loadedFiles[index].isUnlockedSuccessfully = true
+                loadedFiles[index].cachedPassword = password
+                loadedFiles[index].pageCount = pdfDocument.pageCount
+                unlockedCount += 1
             }
         }
+        
+        let remainingCount = remainingLockedFileCount
+        if remainingCount == 0 {
+            passwordUnlockMessage = "All protected files are unlocked."
+        } else if unlockedCount == 0 {
+            passwordUnlockMessage = "That password did not unlock any remaining files."
+        } else {
+            passwordUnlockMessage = "Unlocked \(unlockedCount) file\(unlockedCount == 1 ? "" : "s"). \(remainingCount) still locked."
+        }
+        
         globalPasswordInput = ""
     }
     
+    private func inspectPDFFile(at url: URL) -> Result<PDFFile, LocalStitchError> {
+        guard url.pathExtension.lowercased() == "pdf" else {
+            return .failure(.unsupportedFile(url.lastPathComponent))
+        }
+        
+        guard let pdfDocument = PDFDocument(url: url) else {
+            Logger.engine.error("Failed to parse PDF document structure for: \(url.lastPathComponent). File may be corrupted.")
+            return .failure(.corruptedFile(url.lastPathComponent))
+        }
+        
+        let fileIsEncrypted = pdfDocument.isLocked
+        if fileIsEncrypted {
+            Logger.engine.warning("Added password-protected file awaiting unlock: \(url.lastPathComponent)")
+        }
+        
+        return .success(PDFFile(
+            url: url,
+            pageCount: fileIsEncrypted ? nil : pdfDocument.pageCount,
+            isLocked: fileIsEncrypted
+        ))
+    }
+    
+    private func addPDFURLs(_ urls: [URL]) {
+        let remainingSlots = max(0, 100 - loadedFiles.count)
+        let urlsToInspect = Array(urls.prefix(remainingSlots))
+        guard !urlsToInspect.isEmpty else { return }
+        
+        Logger.engine.info("Inspecting \(urlsToInspect.count) PDF candidates.")
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            var newlyAddedFiles: [PDFFile] = []
+            var firstError: LocalStitchError?
+            
+            for url in urlsToInspect {
+                switch self.inspectPDFFile(at: url) {
+                case .success(let file):
+                    newlyAddedFiles.append(file)
+                case .failure(let error):
+                    if firstError == nil {
+                        firstError = error
+                    }
+                }
+            }
+            
+            DispatchQueue.main.async {
+                if !newlyAddedFiles.isEmpty {
+                    self.loadedFiles.append(contentsOf: newlyAddedFiles)
+                    self.passwordUnlockMessage = ""
+                    self.viewMode = .activeList
+                }
+                
+                if let firstError {
+                    self.currentUIError = firstError
+                }
+            }
+        }
+    }
+    
     func executeProductionMergePipeline() {
+        guard !hasRemainingLockedFiles else {
+            currentUIError = .lockedFilesRemain
+            return
+        }
+        
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.pdf]
         savePanel.nameFieldStringValue = "Merged_Document.pdf"
@@ -228,8 +291,11 @@ class PDFMergeEngine: ObservableObject {
         
         DispatchQueue.global(qos: .userInitiated).async {
             let masterDocument = PDFDocument()
+            var didAbortMerge = false
             
             for (index, targetFile) in targetFilesToMerge.enumerated() {
+                if didAbortMerge { break }
+                
                 guard case .processing = DispatchQueue.main.sync(execute: { self.viewMode }) else { return }
                 
                 DispatchQueue.main.async {
@@ -241,8 +307,15 @@ class PDFMergeEngine: ObservableObject {
                 autoreleasepool {
                     guard let currentDoc = PDFDocument(url: targetFile.url) else { return }
                     
-                    if targetFile.isLocked {
-                        _ = currentDoc.unlock(withPassword: targetFile.cachedPassword)
+                    if targetFile.isLocked && !currentDoc.unlock(withPassword: targetFile.cachedPassword) {
+                        didAbortMerge = true
+                        DispatchQueue.main.async {
+                            self.finalSavedURL = nil
+                            self.processingProgress = 0.0
+                            self.viewMode = .activeList
+                            self.currentUIError = .lockedFilesRemain
+                        }
+                        return
                     }
                     
                     if shouldInjectManifests {
@@ -281,11 +354,20 @@ class PDFMergeEngine: ObservableObject {
                 }
             }
             
-            masterDocument.write(to: destinationURL)
+            if didAbortMerge { return }
+            
+            let didWriteMergedDocument = masterDocument.write(to: destinationURL)
             
             DispatchQueue.main.async {
-                self.processingProgress = 1.0
-                self.viewMode = .success
+                if didWriteMergedDocument {
+                    self.processingProgress = 1.0
+                    self.viewMode = .success
+                } else {
+                    self.finalSavedURL = nil
+                    self.processingProgress = 0.0
+                    self.viewMode = .activeList
+                    self.currentUIError = .writePermissionDenied
+                }
             }
         }
     }
@@ -310,61 +392,17 @@ class PDFMergeEngine: ObservableObject {
     }
 
     /// Processes paths captured from system drag-and-drop events
-    /// Processes paths captured from system drag-and-drop events
     func handleDroppedURLs(_ urls: [URL]) {
-        // 1. System Log: Track that the OS securely handed off file paths to our engine
         Logger.engine.info("Successfully received \(urls.count) drop targets.")
-        
-        var newlyAddedFiles: [PDFFile] = []
-        
-        for url in urls {
-            // Enforce hard constraint limitation of 100 files max
-            if (loadedFiles.count + newlyAddedFiles.count) >= 100 { break }
-            
-            // Validate that the file dropped is actually a PDF extension
-            guard url.pathExtension.lowercased() == "pdf" else { continue }
-            
-            if let pdfDocument = PDFDocument(url: url) {
-                // Check if the PDF is password-encrypted
-                if pdfDocument.isLocked {
-                    // Log the warning behind the scenes
-                    Logger.engine.warning("Encountered password-encrypted file restriction for: \(url.lastPathComponent)")
-                    
-                    // Trigger the UI pop-up alert to notify the user
-                    self.currentUIError = .genericMergeFailure("The file '\(url.lastPathComponent)' is password-encrypted. Please remove the protection restriction before stitching.")
-                    
-                    continue // Skip this specific file and inspect the rest of the batch
-                }
-                
-                // If it isn't locked, proceed with parsing safely
-                let pageCount = pdfDocument.pageCount
-                
-                let discoveredFile = PDFFile(
-                    url: url,
-                    pageCount: pageCount,
-                    isLocked: false
-                )
-                newlyAddedFiles.append(discoveredFile)
-            } else {
-                // 2. System Log: Track exactly which document failed to load
-                Logger.engine.error("Failed to parse PDF document structure for: \(url.lastPathComponent). File may be corrupted.")
-                
-                // 3. User Alert: Trigger the visual popup notification in the app UI
-                self.currentUIError = .corruptedFile(url.lastPathComponent)
-            }
-        }
-        
-        // Append the valid files and transition the view state automatically
-        if !newlyAddedFiles.isEmpty {
-            loadedFiles.append(contentsOf: newlyAddedFiles)
-            viewMode = .activeList
-        }
+        addPDFURLs(urls)
     }
     
 }
 
 enum LocalStitchError: LocalizedError, Identifiable {
     case corruptedFile(String)
+    case lockedFilesRemain
+    case unsupportedFile(String)
     case writePermissionDenied
     case genericMergeFailure(String)
     
@@ -374,6 +412,10 @@ enum LocalStitchError: LocalizedError, Identifiable {
         switch self {
         case .corruptedFile(let fileName):
             return "The file '\(fileName)' appears to be corrupted or isn't a structured PDF document."
+        case .lockedFilesRemain:
+            return "Unlock every password-protected PDF before merging."
+        case .unsupportedFile(let fileName):
+            return "'\(fileName)' is not a PDF file."
         case .writePermissionDenied:
             return "Local Stitch doesn't have permission to write to your chosen directory. Check your Mac Sandbox file access rules."
         case .genericMergeFailure(let message):

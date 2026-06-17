@@ -1,34 +1,35 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - PRIMARY DISPLAY VIEW LAYER
 struct ContentView: View {
     @StateObject private var engine = PDFMergeEngine()
     
     var body: some View {
-        VStack(spacing: 0) { // spacing: 0 ensures the banner touches the list perfectly
+        VStack(spacing: 0) {
             
-            // 1. Mount your brand new custom Figma banner at the very top
-            Image("AppBanner")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 700, height: 80)
-                .clipped()
+            headerComponent
             
-            // 2. Dynamically switch between the empty state and the active file list
-            if engine.loadedFiles.isEmpty {
-                emptyDropzoneComponent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                fileListComponent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group {
+                switch engine.viewMode {
+                case .processing:
+                    processingComponent
+                case .success:
+                    successComponent
+                case .empty, .activeList:
+                    if engine.loadedFiles.isEmpty {
+                        emptyDropzoneComponent
+                    } else {
+                        fileListComponent
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onDrop(of: [.fileURL], isTargeted: nil, perform: handleDrop)
             
-            // 3. Optional: If you have a bottom action bar/merge button, it goes here
-            // bottomActionBarComponent
+            footerControlComponent
         }
-        // 4. Lock down the final frame dimensions of the window execution canvas
         .frame(width: 700, height: 500)
-        // This is the error alert hook we wired up earlier!
         .alert(item: $engine.currentUIError) { error in
             Alert(
                 title: Text("Process Interrupted"),
@@ -37,22 +38,79 @@ struct ContentView: View {
             )
         }
     }
+    
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        var acceptedDrop = false
+        
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            acceptedDrop = true
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let droppedURL: URL?
+                
+                if let url = item as? URL {
+                    droppedURL = url
+                } else if let data = item as? Data {
+                    droppedURL = URL(dataRepresentation: data, relativeTo: nil)
+                } else {
+                    droppedURL = nil
+                }
+                
+                if let droppedURL {
+                    DispatchQueue.main.async {
+                        engine.handleDroppedURLs([droppedURL])
+                    }
+                }
+            }
+        }
+        
+        return acceptedDrop
+    }
 }
 
 // MARK: - LAYOUT COMPONENT EXPANSIONS
 extension ContentView {
     
     private var headerComponent: some View {
-        VStack(spacing: 4) {
-            Text("Local Stitch")
-                .font(.system(size: 16, weight: .bold))
-            Text("The private Mac utility to merge password-locked PDFs and make them AI friendly")
-                .font(.system(size: 11))
+        HStack(spacing: 14) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 48, height: 48)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Local Stitch")
+                    .font(.system(size: 24, weight: .semibold))
+                
+                Text("Private PDF merging for your Mac")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Text(appVersionLabel)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
         }
-        .padding(.vertical, 14)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
         .frame(maxWidth: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
+    }
+    
+    private var appVersionLabel: String {
+        guard
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            !version.isEmpty
+        else {
+            return "Version 1.0"
+        }
+        
+        if let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String, !build.isEmpty {
+            return "Version \(version) (\(build))"
+        }
+        
+        return "Version \(version)"
     }
     
     private var emptyDropzoneComponent: some View {
@@ -138,6 +196,7 @@ extension ContentView {
                         Button(action: {
                             if let index = engine.loadedFiles.firstIndex(of: file) {
                                 engine.loadedFiles.remove(at: index)
+                                engine.passwordUnlockMessage = ""
                                 if engine.loadedFiles.isEmpty { engine.viewMode = .empty }
                             }
                         }) {
@@ -210,7 +269,7 @@ extension ContentView {
     private var footerControlComponent: some View {
         VStack(spacing: 14) {
             if engine.hasRemainingLockedFiles && engine.viewMode == .activeList {
-                let lockedCount = engine.loadedFiles.filter { $0.isLocked && !$0.isUnlockedSuccessfully }.count
+                let lockedCount = engine.remainingLockedFileCount
                 HStack(spacing: 10) {
                     Image(systemName: "lock.fill")
                         .foregroundColor(.orange)
@@ -223,12 +282,16 @@ extension ContentView {
                     SecureField("Enter Password", text: $engine.globalPasswordInput)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 150)
+                        .onSubmit {
+                            engine.checkPasswordUnlock()
+                        }
                     
                     Button("Apply to All") {
                         engine.checkPasswordUnlock()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .disabled(engine.globalPasswordInput.isEmpty)
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity)
@@ -238,6 +301,13 @@ extension ContentView {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.orange.opacity(0.15), lineWidth: 1)
                 )
+                
+                if !engine.passwordUnlockMessage.isEmpty {
+                    Text(engine.passwordUnlockMessage)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             
             VStack(alignment: .leading, spacing: 4) {
