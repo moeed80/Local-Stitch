@@ -160,7 +160,7 @@ The app uses `autoreleasepool` while processing each document to reduce memory p
 
 When the user clicks "Merge," Local Stitch opens a native macOS save panel.
 
-- The default output name is `Merged_Document.pdf`.
+- The default output name is `Locally_Stitched_Document.pdf`.
 - The user chooses the final filename and destination.
 - The app writes the merged PDF only to the chosen path.
 - If writing fails, the app displays a permission-related alert.

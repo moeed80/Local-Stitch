@@ -394,7 +394,7 @@ class PDFMergeEngine: ObservableObject {
 
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.pdf]
-        savePanel.nameFieldStringValue = "Merged_Document.pdf"
+        savePanel.nameFieldStringValue = "Locally_Stitched_Document.pdf"
         savePanel.title = "Export Destination"
 
         guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
