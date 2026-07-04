@@ -14,6 +14,7 @@ Rules:
 Local Stitch implementation rules:
 - Use user-selected files only.
 - Avoid loading all PDFs into memory at once.
-- Keep PDF inspection, SHA-256 hashing, and merge work off the main thread.
+- Keep PDF inspection, SHA-256 hashing, merge work, and file size reduction work off the main thread.
 - Preserve UI responsiveness during large merges.
+- Preserve UI responsiveness during large compression tasks.
 - Enforce the 100-file limit.

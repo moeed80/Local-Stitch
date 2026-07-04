@@ -59,7 +59,11 @@ After App Store distribution is live, install Local Stitch from the Mac App Stor
 
 ### Direct Download
 
-If a signed direct download is published through GitHub Releases, open the downloaded disk image or archive and drag `Local Stitch.app` into your `Applications` folder.
+Download the signed and notarized DMG from GitHub Releases:
+
+https://github.com/moeed80/Local-Stitch/releases/download/v1.0.0/Local-Stitch-1.0.dmg
+
+Open the downloaded disk image and drag `Local Stitch.app` into your `Applications` folder.
 
 ## Uninstall
 

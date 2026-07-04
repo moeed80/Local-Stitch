@@ -17,6 +17,11 @@ This guide covers the admin and release steps for distributing Local Stitch as a
 
 The app currently builds successfully in Release configuration.
 
+Current public release:
+
+- Release page: https://github.com/moeed80/Local-Stitch/releases/tag/v1.0.0
+- Direct DMG: https://github.com/moeed80/Local-Stitch/releases/download/v1.0.0/Local-Stitch-1.0.dmg
+
 ## Distribution Paths
 
 Local Stitch has two different distribution paths:
@@ -218,7 +223,10 @@ xcrun stapler validate "build/Local-Stitch-1.0.dmg"
 ### 8. Final Gatekeeper Verification
 
 ```sh
-spctl --assess --type open --verbose=4 "build/Local-Stitch-1.0.dmg"
+spctl --assess --type open \
+  --context context:primary-signature \
+  --verbose=4 \
+  "build/Local-Stitch-1.0.dmg"
 ```
 
 You can also mount the DMG, copy the app to `/Applications`, and launch it on a clean test Mac or fresh user account.
@@ -250,8 +258,10 @@ In Xcode:
 
 Recommended positioning:
 
-- Free private PDF stitching for Mac.
+- Free private PDF stitching and file size reduction for Mac.
 - Merge PDFs locally.
+- Reduce the size of a single PDF locally.
+- Merge and reduce final output size.
 - Prepare PDFs for AI-assisted review.
 - No account.
 - No cloud upload.
@@ -268,6 +278,7 @@ Based on the current app behavior, the App Store privacy answers should reflect:
 - No third-party analytics.
 - No data collection.
 - No network upload of documents.
+- Local PDF inspection, password unlock, source summary generation, merge, and file size reduction.
 
 Review the actual binary and any future dependencies before submitting; the privacy answers must match the shipped app.
 
@@ -291,8 +302,14 @@ Review the actual binary and any future dependencies before submitting; the priv
 - [ ] Upload DMG to GitHub Releases.
 - [ ] Keep release notes simple and user-facing.
 
-## Current Blockers Before A Real Public DMG
+## Current Release Notes Baseline
 
-- No valid local code-signing identities are currently available in Keychain.
-- Xcode currently needs the Apple Developer team connected before Developer ID signing can work.
-- Notarization credentials need to be stored locally before command-line notarization can run.
+When publishing a release, mention:
+
+- Merge up to 100 user-selected PDFs locally.
+- Reduce the file size of one PDF.
+- Optionally reduce file size after merging PDFs.
+- Unlock protected PDFs locally before processing.
+- Add optional AI-friendly source summary pages.
+- No account, no cloud processing, no document uploads.
+- Signed and notarized for macOS.

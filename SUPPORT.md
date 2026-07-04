@@ -14,6 +14,8 @@ Please include:
 - Your macOS version.
 - Your Local Stitch version.
 - A short description of what you were trying to do.
+- Whether you were merging PDFs, reducing one PDF's file size, or merging and reducing file size.
+- Whether the PDFs were password-protected.
 - The exact message shown by the app, if any.
 
 Please do not send passwords, private keys, financial records, legal records, or other sensitive files unless they are necessary for support and you are comfortable sharing them.

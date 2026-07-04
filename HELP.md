@@ -24,6 +24,8 @@ The output PDF follows the order shown in the file list.
 
 Local Stitch uses PDFKit to rewrite images where available. Some PDFs are already optimized, mostly text, or structured in a way that does not shrink much.
 
+`Balanced` is the best first choice. `Smallest PDF` is more aggressive and may reduce image quality.
+
 ## Merge And Compress
 
 1. Add two or more PDFs.
@@ -61,6 +63,10 @@ Privacy policy: https://moeed.com/privacy/
 
 ## Install And Uninstall
 
-Install from the Mac App Store, or drag a signed direct-download build into the `Applications` folder.
+Install from the Mac App Store, or download the signed DMG from GitHub Releases:
+
+https://github.com/moeed80/Local-Stitch/releases/tag/v1.0.0
+
+For direct downloads, open the DMG and drag `Local Stitch.app` into the `Applications` folder.
 
 To uninstall, delete `Local Stitch.app` from Launchpad or move it from `Applications` to the Trash.
