@@ -42,7 +42,7 @@ struct AppInfoView: View {
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                 
-                Text("Private PDF merging for your Mac. No uploads.")
+                Text("Private PDF merging and file size reduction for your Mac. No uploads.")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }

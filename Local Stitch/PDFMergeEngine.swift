@@ -12,9 +12,12 @@ struct PDFFile: Identifiable, Equatable {
     let url: URL
     var name: String { url.lastPathComponent }
     var pageCount: Int?
+    var fileSizeBytes: UInt64
     var isLocked: Bool
     var isUnlockedSuccessfully: Bool = false
     var cachedPassword: String = ""
+    var hasAnnotations: Bool = false
+    var hasForms: Bool = false
 }
 
 enum AppViewMode {
@@ -22,6 +25,18 @@ enum AppViewMode {
     case activeList
     case processing
     case success
+}
+
+enum PDFProcessingPhase {
+    case estimatingCompression
+    case merging
+    case compressing
+}
+
+enum CompletedPDFOperation {
+    case compressed
+    case merged
+    case mergedAndCompressed
 }
 
 // MARK: - 2. CUSTOM SYSTEM PDF MANIFEST PAGE OVERLAY
@@ -224,23 +239,53 @@ class PDFMergeEngine: ObservableObject {
     @Published var viewMode: AppViewMode = .empty
     @Published var currentUIError: LocalStitchError? = nil
     @Published var insertManifestPages = false
+    @Published var reduceSingleFileSize = true
+    @Published var reduceMergedFileSize = false
+    @Published var compressionLevel: PDFCompressionLevel = .balanced
+    @Published var compressionEstimate: PDFCompressionMeasurement? = nil
     @Published var globalPasswordInput = ""
 
     @Published var processingProgress: Double = 0.0
     @Published var currentFileIndex: Int = 0
     @Published var totalFileCount: Int = 0
+    @Published var processingPhase: PDFProcessingPhase = .merging
+    @Published var processingTitle: String = ""
+    @Published var processingStatusLine: String = ""
     @Published var processingSubtext: String = ""
+    @Published var processingFooterSummary: String = ""
     @Published var generatedFilename: String = ""
+    @Published var savedPageCount: Int = 0
+    @Published var completedOperation: CompletedPDFOperation = .merged
+    @Published var successSizeSummary: String = ""
+    @Published var successAdditionalNote: String = ""
     @Published var passwordUnlockMessage: String = ""
     @Published var isCancellationRequested = false
 
     // Tracks the exact system storage path chosen by the user
     private var finalSavedURL: URL? = nil
+    private let compressionService = PDFCompressionService()
+    private var activeCompressionRequestID: UUID? = nil
 
     var estimatedPageCount: Int {
         let basePages = loadedFiles.compactMap { $0.pageCount }.reduce(0, +)
         let overhead = insertManifestPages && !loadedFiles.isEmpty ? loadedFiles.count + 1 : 0
         return basePages + overhead
+    }
+
+    var selectedInputSizeBytes: UInt64 {
+        loadedFiles.reduce(0) { $0 + $1.fileSizeBytes }
+    }
+
+    var isSingleFileWorkflow: Bool {
+        loadedFiles.count == 1
+    }
+
+    var hasUnlockedProtectedFiles: Bool {
+        loadedFiles.contains { $0.isLocked && $0.isUnlockedSuccessfully }
+    }
+
+    var hasRewriteSensitivePDFs: Bool {
+        loadedFiles.contains { $0.hasAnnotations || $0.hasForms }
     }
 
     var hasRemainingLockedFiles: Bool {
@@ -249,6 +294,94 @@ class PDFMergeEngine: ObservableObject {
 
     var remainingLockedFileCount: Int {
         loadedFiles.filter { $0.isLocked && !$0.isUnlockedSuccessfully }.count
+    }
+
+    var primaryActionTitle: String {
+        guard !loadedFiles.isEmpty else { return "Merge PDFs" }
+
+        if isSingleFileWorkflow {
+            guard reduceSingleFileSize else { return "Reduce File Size" }
+            guard let compressionEstimate else { return "Reduce File Size" }
+            return compressionEstimate.hasMeaningfulSavings ? "Save Compressed Copy" : "Save Copy Anyway"
+        }
+
+        return reduceMergedFileSize ? "Merge & Compress" : "Merge PDFs"
+    }
+
+    var canPerformPrimaryAction: Bool {
+        guard viewMode == .activeList, !loadedFiles.isEmpty, !hasRemainingLockedFiles else {
+            return false
+        }
+
+        if isSingleFileWorkflow {
+            return reduceSingleFileSize
+        }
+
+        return true
+    }
+
+    var shouldOfferKeepOriginal: Bool {
+        guard isSingleFileWorkflow, let compressionEstimate else { return false }
+        return compressionEstimate.isLargerThanOriginal || compressionEstimate.hasLittleOrNoSavings
+    }
+
+    var shouldPreferKeepOriginal: Bool {
+        guard isSingleFileWorkflow, let compressionEstimate else { return false }
+        return compressionEstimate.isLargerThanOriginal
+    }
+
+    var successTitle: String {
+        switch completedOperation {
+        case .compressed:
+            return "Compressed PDF saved"
+        case .merged:
+            return "Merged PDF saved"
+        case .mergedAndCompressed:
+            return "Merged and compressed PDF saved"
+        }
+    }
+
+    var successDetail: String {
+        switch completedOperation {
+        case .compressed:
+            return "Saved '\(generatedFilename)'."
+        case .merged, .mergedAndCompressed:
+            return "Saved '\(generatedFilename)' with \(savedPageCount) pages."
+        }
+    }
+
+    var footerEstimateText: String {
+        guard !loadedFiles.isEmpty else {
+            return "Estimated output: 0 pages"
+        }
+
+        if hasRemainingLockedFiles {
+            return "Estimated output: locked PDF must be unlocked first"
+        }
+
+        if isSingleFileWorkflow {
+            guard let file = loadedFiles.first else { return "Estimated output: 0 pages" }
+            let pageText = "\(file.pageCount ?? 0) pages"
+
+            if let compressionEstimate {
+                if compressionEstimate.isLargerThanOriginal {
+                    return "Estimated output: larger than original"
+                }
+
+                if compressionEstimate.hasLittleOrNoSavings {
+                    return "Estimated output: little or no reduction"
+                }
+
+                return "Estimated output: \(pageText), about \(Self.formattedFileSize(compressionEstimate.compressedSizeBytes))"
+            }
+
+            return "Estimated output: \(pageText), \(Self.formattedFileSize(file.fileSizeBytes))"
+        }
+
+        let manifestPageCount = loadedFiles.count + 1
+        let manifestOverheadText = insertManifestPages ? " including \(manifestPageCount) summary pages" : ""
+        let sizeText = selectedInputSizeBytes > 0 ? ", about \(Self.formattedFileSize(selectedInputSizeBytes)) input" : ""
+        return "Estimated output: \(estimatedPageCount) pages\(manifestOverheadText)\(sizeText)"
     }
 
     func selectLocalFiles() {
@@ -267,27 +400,53 @@ class PDFMergeEngine: ObservableObject {
         let password = globalPasswordInput
         guard !password.isEmpty else { return }
 
-        var unlockedCount = 0
+        globalPasswordInput = ""
+        let filesNeedingUnlock = loadedFiles.filter { $0.isLocked && !$0.isUnlockedSuccessfully }
 
-        for index in loadedFiles.indices where loadedFiles[index].isLocked && !loadedFiles[index].isUnlockedSuccessfully {
-            if let pdfDocument = PDFDocument(url: loadedFiles[index].url), pdfDocument.unlock(withPassword: password) {
-                loadedFiles[index].isUnlockedSuccessfully = true
-                loadedFiles[index].cachedPassword = password
-                loadedFiles[index].pageCount = pdfDocument.pageCount
-                unlockedCount += 1
+        DispatchQueue.global(qos: .userInitiated).async {
+            var unlockResults: [UUID: (pageCount: Int, hasAnnotations: Bool, hasForms: Bool)] = [:]
+
+            for file in filesNeedingUnlock {
+                autoreleasepool {
+                    guard
+                        let pdfDocument = PDFDocument(url: file.url),
+                        pdfDocument.unlock(withPassword: password)
+                    else {
+                        return
+                    }
+
+                    unlockResults[file.id] = (
+                        pageCount: pdfDocument.pageCount,
+                        hasAnnotations: self.documentHasAnnotations(pdfDocument, shouldCancel: { false }),
+                        hasForms: self.documentHasForms(pdfDocument, shouldCancel: { false })
+                    )
+                }
+            }
+
+            DispatchQueue.main.async {
+                var unlockedCount = 0
+
+                for index in self.loadedFiles.indices where self.loadedFiles[index].isLocked && !self.loadedFiles[index].isUnlockedSuccessfully {
+                    guard let result = unlockResults[self.loadedFiles[index].id] else { continue }
+
+                    self.loadedFiles[index].isUnlockedSuccessfully = true
+                    self.loadedFiles[index].cachedPassword = password
+                    self.loadedFiles[index].pageCount = result.pageCount
+                    self.loadedFiles[index].hasAnnotations = result.hasAnnotations
+                    self.loadedFiles[index].hasForms = result.hasForms
+                    unlockedCount += 1
+                }
+
+                let remainingCount = self.remainingLockedFileCount
+                if remainingCount == 0 {
+                    self.passwordUnlockMessage = "All protected files are unlocked. Output copies are saved without the original PDF password."
+                } else if unlockedCount == 0 {
+                    self.passwordUnlockMessage = "That password did not unlock any remaining files."
+                } else {
+                    self.passwordUnlockMessage = "Unlocked \(unlockedCount) file\(unlockedCount == 1 ? "" : "s"). \(remainingCount) still locked."
+                }
             }
         }
-
-        let remainingCount = remainingLockedFileCount
-        if remainingCount == 0 {
-            passwordUnlockMessage = "All protected files are unlocked."
-        } else if unlockedCount == 0 {
-            passwordUnlockMessage = "That password did not unlock any remaining files."
-        } else {
-            passwordUnlockMessage = "Unlocked \(unlockedCount) file\(unlockedCount == 1 ? "" : "s"). \(remainingCount) still locked."
-        }
-
-        globalPasswordInput = ""
     }
 
     private func inspectPDFFile(at url: URL) -> Result<PDFFile, LocalStitchError> {
@@ -308,7 +467,10 @@ class PDFMergeEngine: ObservableObject {
         return .success(PDFFile(
             url: url,
             pageCount: fileIsEncrypted ? nil : pdfDocument.pageCount,
-            isLocked: fileIsEncrypted
+            fileSizeBytes: PDFCompressionService.fileSize(at: url) ?? 0,
+            isLocked: fileIsEncrypted,
+            hasAnnotations: fileIsEncrypted ? false : documentHasAnnotations(pdfDocument, shouldCancel: { false }),
+            hasForms: fileIsEncrypted ? false : documentHasForms(pdfDocument, shouldCancel: { false })
         ))
     }
 
@@ -339,8 +501,10 @@ class PDFMergeEngine: ObservableObject {
 
             DispatchQueue.main.async {
                 if !newlyAddedFiles.isEmpty {
+                    self.clearCompressionEstimate()
                     self.loadedFiles.append(contentsOf: newlyAddedFiles)
                     self.passwordUnlockMessage = ""
+                    self.reduceSingleFileSize = self.loadedFiles.count == 1
                     self.viewMode = .activeList
                 }
 
@@ -380,10 +544,176 @@ class PDFMergeEngine: ObservableObject {
         }
 
         if ignoredForLimitCount > 0 {
-            lines.append("Left out \(ignoredForLimitCount) item\(ignoredForLimitCount == 1 ? "" : "s") because Local Stitch can merge up to 100 PDFs at a time.")
+            lines.append("Left out \(ignoredForLimitCount) item\(ignoredForLimitCount == 1 ? "" : "s") because Local Stitch can process up to 100 PDFs at a time.")
         }
 
         return lines.joined(separator: "\n\n")
+    }
+
+    func performPrimaryAction() {
+        guard canPerformPrimaryAction else { return }
+
+        if isSingleFileWorkflow {
+            if compressionEstimate == nil {
+                startSingleFileCompressionEstimate()
+            } else {
+                saveSingleFileCompressedCopy()
+            }
+        } else {
+            executeProductionMergePipeline()
+        }
+    }
+
+    func setCompressionLevel(_ level: PDFCompressionLevel) {
+        guard compressionLevel != level else { return }
+
+        let shouldRefreshEstimate = compressionEstimate != nil
+            && isSingleFileWorkflow
+            && viewMode == .activeList
+            && !hasRemainingLockedFiles
+
+        compressionLevel = level
+        clearCompressionEstimate()
+
+        if shouldRefreshEstimate {
+            startSingleFileCompressionEstimate()
+        }
+    }
+
+    func setReduceSingleFileSize(_ isEnabled: Bool) {
+        reduceSingleFileSize = isEnabled
+
+        if !isEnabled {
+            clearCompressionEstimate()
+        }
+    }
+
+    func keepOriginalSingleFile() {
+        clearCompressionEstimate()
+    }
+
+    func startSingleFileCompressionEstimate() {
+        guard !hasRemainingLockedFiles else {
+            currentUIError = .lockedFilesRemain
+            return
+        }
+
+        guard isSingleFileWorkflow, let sourceFile = loadedFiles.first else { return }
+
+        clearCompressionEstimate()
+
+        let requestID = UUID()
+        activeCompressionRequestID = requestID
+        finalSavedURL = nil
+        generatedFilename = ""
+        currentFileIndex = 1
+        totalFileCount = 1
+        processingPhase = .estimatingCompression
+        processingTitle = "Estimating reduced file size..."
+        processingStatusLine = ""
+        processingProgress = 0.2
+        processingSubtext = "Creating a temporary local copy. No files are uploaded."
+        processingFooterSummary = "Original: \(Self.formattedFileSize(sourceFile.fileSizeBytes))"
+        isCancellationRequested = false
+        viewMode = .processing
+
+        let selectedLevel = compressionLevel
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let temporaryURL = try self.compressionService.temporaryPDFURL(prefix: "compression-estimate")
+                let measurement = try self.compressionService.compressedCopy(
+                    from: sourceFile.url,
+                    to: temporaryURL,
+                    password: sourceFile.isLocked ? sourceFile.cachedPassword : nil,
+                    level: selectedLevel,
+                    shouldCancel: self.isCancellationRequestedSnapshot
+                )
+
+                DispatchQueue.main.async {
+                    guard self.activeCompressionRequestID == requestID else {
+                        try? FileManager.default.removeItem(at: measurement.outputURL)
+                        return
+                    }
+
+                    self.compressionEstimate = measurement
+                    self.processingProgress = 1.0
+                    self.processingSubtext = ""
+                    self.processingFooterSummary = ""
+                    self.isCancellationRequested = false
+                    self.activeCompressionRequestID = nil
+                    self.viewMode = .activeList
+                }
+            } catch let error as LocalStitchError {
+                DispatchQueue.main.async {
+                    guard self.activeCompressionRequestID == requestID else { return }
+
+                    self.processingProgress = 0.0
+                    self.processingSubtext = ""
+                    self.processingFooterSummary = ""
+                    self.isCancellationRequested = false
+                    self.activeCompressionRequestID = nil
+                    self.viewMode = .activeList
+
+                    if case .compressionCancelled = error {
+                        return
+                    }
+
+                    self.currentUIError = error
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard self.activeCompressionRequestID == requestID else { return }
+
+                    self.processingProgress = 0.0
+                    self.processingSubtext = ""
+                    self.processingFooterSummary = ""
+                    self.isCancellationRequested = false
+                    self.activeCompressionRequestID = nil
+                    self.viewMode = .activeList
+                    self.currentUIError = .compressionFailed(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func saveSingleFileCompressedCopy() {
+        guard
+            let sourceFile = loadedFiles.first,
+            let measurement = compressionEstimate
+        else {
+            currentUIError = .compressionFailed("The measured reduced-size copy is no longer available.")
+            return
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.pdf]
+        savePanel.nameFieldStringValue = Self.defaultCompressedFilename(for: sourceFile.url)
+        savePanel.title = "Save Compressed Copy"
+
+        guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
+
+        do {
+            try copyFileReplacingExisting(from: measurement.outputURL, to: destinationURL)
+            try? FileManager.default.removeItem(at: measurement.outputURL)
+
+            finalSavedURL = destinationURL
+            generatedFilename = destinationURL.lastPathComponent
+            savedPageCount = sourceFile.pageCount ?? 0
+            completedOperation = .compressed
+            successSizeSummary = Self.compressionSummary(
+                originalLabel: "Original",
+                finalLabel: "New",
+                measurement: measurement
+            )
+            successAdditionalNote = measurement.hasLittleOrNoSavings || measurement.isLargerThanOriginal
+                ? "This PDF may already be optimized."
+                : ""
+            compressionEstimate = nil
+            viewMode = .success
+        } catch {
+            currentUIError = .compressedCopySaveFailed
+        }
     }
 
     func executeProductionMergePipeline() {
@@ -395,186 +725,390 @@ class PDFMergeEngine: ObservableObject {
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.pdf]
         savePanel.nameFieldStringValue = "Locally_Stitched_Document.pdf"
-        savePanel.title = "Export Destination"
+        savePanel.title = reduceMergedFileSize ? "Export Merged and Compressed PDF" : "Export Destination"
 
         guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
 
-        // Retain the URL path state locally for the Finder reveal action later
-        self.finalSavedURL = destinationURL
-        self.generatedFilename = savePanel.nameFieldStringValue
-        self.totalFileCount = loadedFiles.count
-        self.currentFileIndex = 0
-        self.processingProgress = 0.0
-        self.processingSubtext = "Preparing selected PDFs..."
+        let targetFilesToMerge = loadedFiles
+        let shouldInjectManifests = insertManifestPages
+        let shouldCompressMergedOutput = reduceMergedFileSize
+        let selectedLevel = compressionLevel
+        let plannedPageCount = estimatedPageCount
+        let mergedOutputURL: URL
+        let compressedOutputURL: URL?
+
+        do {
+            if shouldCompressMergedOutput {
+                mergedOutputURL = try compressionService.temporaryPDFURL(prefix: "merged-before-compression")
+                compressedOutputURL = try compressionService.temporaryPDFURL(prefix: "merged-compressed")
+            } else {
+                mergedOutputURL = destinationURL
+                compressedOutputURL = nil
+            }
+        } catch {
+            currentUIError = .temporaryFileUnavailable
+            return
+        }
+
+        finalSavedURL = destinationURL
+        generatedFilename = destinationURL.lastPathComponent
+        savedPageCount = plannedPageCount
+        completedOperation = shouldCompressMergedOutput ? .mergedAndCompressed : .merged
+        successSizeSummary = ""
+        successAdditionalNote = ""
+        totalFileCount = targetFilesToMerge.count
+        currentFileIndex = 0
+        processingPhase = .merging
+        processingTitle = "Merging PDFs..."
+        processingStatusLine = "File 0 of \(targetFilesToMerge.count)"
+        processingProgress = 0.0
+        processingSubtext = "Preparing selected PDFs..."
+        processingFooterSummary = ""
         self.isCancellationRequested = false
         self.viewMode = .processing
 
-        let targetFilesToMerge = loadedFiles
-        let shouldInjectManifests = insertManifestPages
-
         DispatchQueue.global(qos: .userInitiated).async {
-            let masterDocument = PDFDocument()
-            var didAbortMerge = false
-            var manifestMetadataByID: [UUID: PDFManifestMetadata] = [:]
+            let mergeResult = self.buildAndWriteMergedDocument(
+                targetFilesToMerge: targetFilesToMerge,
+                shouldInjectManifests: shouldInjectManifests,
+                destinationURL: mergedOutputURL
+            )
 
-            if shouldInjectManifests {
-                DispatchQueue.main.async {
-                    self.processingSubtext = "Computing original-file fingerprints and document context..."
-                }
-
-                var nextOutputPage = 2
-                for (index, targetFile) in targetFilesToMerge.enumerated() {
-                    guard let currentDoc = PDFDocument(url: targetFile.url) else { continue }
-
-                    if targetFile.isLocked && !currentDoc.unlock(withPassword: targetFile.cachedPassword) {
-                        didAbortMerge = true
-                        DispatchQueue.main.async {
-                            self.finalSavedURL = nil
-                            self.processingProgress = 0.0
-                            self.viewMode = .activeList
-                            self.currentUIError = .lockedFilesRemain
-                        }
-                        break
-                    }
-
-                    let outputStart = nextOutputPage + 1
-                    let outputEnd = outputStart + currentDoc.pageCount - 1
-
-                    guard let manifestMetadata = self.buildManifestMetadata(
-                        for: targetFile,
-                        document: currentDoc,
-                        sourceIndex: index + 1,
-                        sourceCount: targetFilesToMerge.count,
-                        outputPageStart: outputStart,
-                        outputPageEnd: outputEnd
-                    ) else {
-                        didAbortMerge = true
-                        break
-                    }
-
-                    manifestMetadataByID[targetFile.id] = manifestMetadata
-
-                    nextOutputPage = outputEnd + 1
-                }
-
-                if !didAbortMerge {
-                    let manifestDocuments = targetFilesToMerge.compactMap { manifestMetadataByID[$0.id] }
-                    let compilationMetadata = CompilationManifestMetadata(
-                        createdAt: Date(),
-                        appVersion: self.appVersionForManifest(),
-                        sourceCount: targetFilesToMerge.count,
-                        originalPageCount: manifestDocuments.reduce(0) { $0 + $1.originalPageCount },
-                        outputPageCount: manifestDocuments.reduce(0) { $0 + $1.originalPageCount } + manifestDocuments.count + 1,
-                        manifestPageCount: manifestDocuments.count + 1,
-                        documents: manifestDocuments
-                    )
-                    masterDocument.insert(CompilationManifestPage(metadata: compilationMetadata), at: masterDocument.pageCount)
-                }
-            }
-
-            for (index, targetFile) in targetFilesToMerge.enumerated() {
-                if didAbortMerge { break }
-
-                guard case .processing = self.currentViewModeSnapshot(), !self.isCancellationRequestedSnapshot() else {
-                    didAbortMerge = true
-                    break
-                }
-
-                DispatchQueue.main.async {
-                    self.currentFileIndex = index + 1
-                    self.processingProgress = Double(index) / Double(targetFilesToMerge.count)
-                    self.processingSubtext = "Stitching and structural alignment for '\(targetFile.name)'..."
-                }
-
-                autoreleasepool {
-                    guard let currentDoc = PDFDocument(url: targetFile.url) else { return }
-
-                    if targetFile.isLocked && !currentDoc.unlock(withPassword: targetFile.cachedPassword) {
-                        didAbortMerge = true
-                        DispatchQueue.main.async {
-                            self.finalSavedURL = nil
-                            self.processingProgress = 0.0
-                            self.viewMode = .activeList
-                            self.currentUIError = .lockedFilesRemain
-                        }
-                        return
-                    }
-
-                    if shouldInjectManifests {
-                        DispatchQueue.main.async {
-                            self.processingSubtext = "Adding document context and integrity manifest..."
-                        }
-
-                        if let manifestMetadata = manifestMetadataByID[targetFile.id] {
-                            let manifestSheet = ManifestPage(metadata: manifestMetadata)
-                            masterDocument.insert(manifestSheet, at: masterDocument.pageCount)
-                        }
-                    }
-
-                    for pageIndex in 0..<currentDoc.pageCount {
-                        if self.isCancellationRequestedSnapshot() {
-                            didAbortMerge = true
-                            break
-                        }
-
-                        if let extractedPage = currentDoc.page(at: pageIndex) {
-                            masterDocument.insert(extractedPage, at: masterDocument.pageCount)
-                        }
+            guard case .success(let mergedPageCount) = mergeResult else {
+                if shouldCompressMergedOutput {
+                    try? FileManager.default.removeItem(at: mergedOutputURL)
+                    if let compressedOutputURL {
+                        try? FileManager.default.removeItem(at: compressedOutputURL)
                     }
                 }
-            }
 
-            if didAbortMerge || self.isCancellationRequestedSnapshot() {
+                let failure: LocalStitchError
+                if case .failure(let error) = mergeResult {
+                    failure = error
+                } else {
+                    failure = .genericMergeFailure("The merge did not complete.")
+                }
+
                 DispatchQueue.main.async {
                     self.finalSavedURL = nil
                     self.processingProgress = 0.0
                     self.processingSubtext = ""
+                    self.processingStatusLine = ""
+                    self.processingFooterSummary = ""
                     self.isCancellationRequested = false
                     self.viewMode = .activeList
-                    self.currentUIError = .mergeCancelled
+                    self.currentUIError = failure
                 }
                 return
             }
 
-            let didWriteMergedDocument = masterDocument.write(to: destinationURL)
-            let wasCancelledAfterWrite = self.isCancellationRequestedSnapshot()
-
-            if didWriteMergedDocument && wasCancelledAfterWrite {
-                try? FileManager.default.removeItem(at: destinationURL)
+            if !shouldCompressMergedOutput {
+                DispatchQueue.main.async {
+                    self.isCancellationRequested = false
+                    self.savedPageCount = mergedPageCount
+                    self.processingProgress = 1.0
+                    self.processingStatusLine = ""
+                    self.processingSubtext = ""
+                    self.processingFooterSummary = ""
+                    self.completedOperation = .merged
+                    self.successSizeSummary = Self.fileSizeSummary(label: "Final", bytes: PDFCompressionService.fileSize(at: destinationURL))
+                    self.successAdditionalNote = ""
+                    self.viewMode = .success
+                }
+                return
             }
 
-            DispatchQueue.main.async {
-                self.isCancellationRequested = false
-
-                if wasCancelledAfterWrite {
+            guard let compressedOutputURL else {
+                DispatchQueue.main.async {
                     self.finalSavedURL = nil
                     self.processingProgress = 0.0
                     self.processingSubtext = ""
+                    self.processingStatusLine = ""
+                    self.processingFooterSummary = ""
+                    self.isCancellationRequested = false
                     self.viewMode = .activeList
-                    self.currentUIError = .mergeCancelled
-                } else if didWriteMergedDocument {
-                    self.processingProgress = 1.0
-                    self.viewMode = .success
+                    self.currentUIError = .temporaryFileUnavailable
+                }
+                return
+            }
+
+            let mergedSize = PDFCompressionService.fileSize(at: mergedOutputURL) ?? 0
+
+            DispatchQueue.main.async {
+                self.processingPhase = .compressing
+                self.processingTitle = "Reducing file size..."
+                self.processingStatusLine = ""
+                self.processingProgress = 0.68
+                self.processingSubtext = "Creating an optimized local copy of the merged PDF."
+                self.processingFooterSummary = "Original merged size: \(Self.formattedFileSize(mergedSize))"
+            }
+
+            do {
+                let measurement = try self.compressionService.compressedCopy(
+                    from: mergedOutputURL,
+                    to: compressedOutputURL,
+                    password: nil,
+                    level: selectedLevel,
+                    shouldCancel: self.isCancellationRequestedSnapshot
+                )
+
+                let outputSourceURL: URL
+                let completedOperation: CompletedPDFOperation
+                let sizeSummary: String
+                let additionalNote: String
+
+                if measurement.isLargerThanOriginal {
+                    outputSourceURL = mergedOutputURL
+                    completedOperation = .merged
+                    sizeSummary = "Merged size: \(Self.formattedFileSize(measurement.originalSizeBytes))   Compression would be larger: \(Self.formattedFileSize(measurement.compressedSizeBytes))"
+                    additionalNote = "Compression made the file larger, so Local Stitch saved the merged PDF without file size reduction."
                 } else {
+                    outputSourceURL = compressedOutputURL
+                    completedOperation = .mergedAndCompressed
+                    sizeSummary = Self.compressionSummary(
+                        originalLabel: "Merged size",
+                        finalLabel: "Final",
+                        measurement: measurement
+                    )
+                    additionalNote = measurement.hasLittleOrNoSavings
+                        ? "Little or no reduction. This merged PDF may already be optimized."
+                        : ""
+                }
+
+                try self.copyFileReplacingExisting(from: outputSourceURL, to: destinationURL)
+
+                try? FileManager.default.removeItem(at: mergedOutputURL)
+                try? FileManager.default.removeItem(at: compressedOutputURL)
+
+                DispatchQueue.main.async {
+                    self.isCancellationRequested = false
+                    self.savedPageCount = mergedPageCount
+                    self.processingProgress = 1.0
+                    self.processingStatusLine = ""
+                    self.processingSubtext = ""
+                    self.processingFooterSummary = ""
+                    self.completedOperation = completedOperation
+                    self.successSizeSummary = sizeSummary
+                    self.successAdditionalNote = additionalNote
+                    self.viewMode = .success
+                }
+            } catch let error as LocalStitchError {
+                try? FileManager.default.removeItem(at: mergedOutputURL)
+                try? FileManager.default.removeItem(at: compressedOutputURL)
+
+                DispatchQueue.main.async {
                     self.finalSavedURL = nil
                     self.processingProgress = 0.0
+                    self.processingSubtext = ""
+                    self.processingStatusLine = ""
+                    self.processingFooterSummary = ""
                     self.viewMode = .activeList
-                    self.currentUIError = .writePermissionDenied
+                    self.isCancellationRequested = false
+
+                    if case .compressionCancelled = error {
+                        self.currentUIError = .mergeCancelled
+                    } else {
+                        self.currentUIError = error
+                    }
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: mergedOutputURL)
+                try? FileManager.default.removeItem(at: compressedOutputURL)
+
+                DispatchQueue.main.async {
+                    self.finalSavedURL = nil
+                    self.processingProgress = 0.0
+                    self.processingSubtext = ""
+                    self.processingStatusLine = ""
+                    self.processingFooterSummary = ""
+                    self.viewMode = .activeList
+                    self.isCancellationRequested = false
+                    self.currentUIError = .compressionFailed(error.localizedDescription)
                 }
             }
         }
     }
 
+    private func buildAndWriteMergedDocument(
+        targetFilesToMerge: [PDFFile],
+        shouldInjectManifests: Bool,
+        destinationURL: URL
+    ) -> Result<Int, LocalStitchError> {
+        let masterDocument = PDFDocument()
+        var manifestMetadataByID: [UUID: PDFManifestMetadata] = [:]
+
+        if shouldInjectManifests {
+            DispatchQueue.main.async {
+                self.processingSubtext = "Computing original-file fingerprints and document context..."
+            }
+
+            var nextOutputPage = 2
+            for (index, targetFile) in targetFilesToMerge.enumerated() {
+                if isCancellationRequestedSnapshot() {
+                    return .failure(.mergeCancelled)
+                }
+
+                guard let currentDoc = PDFDocument(url: targetFile.url) else {
+                    return .failure(.corruptedFile(targetFile.name))
+                }
+
+                if targetFile.isLocked && !currentDoc.unlock(withPassword: targetFile.cachedPassword) {
+                    return .failure(.lockedFilesRemain)
+                }
+
+                let outputStart = nextOutputPage + 1
+                let outputEnd = outputStart + currentDoc.pageCount - 1
+
+                guard let manifestMetadata = buildManifestMetadata(
+                    for: targetFile,
+                    document: currentDoc,
+                    sourceIndex: index + 1,
+                    sourceCount: targetFilesToMerge.count,
+                    outputPageStart: outputStart,
+                    outputPageEnd: outputEnd
+                ) else {
+                    return .failure(isCancellationRequestedSnapshot() ? .mergeCancelled : .genericMergeFailure("Source summary pages could not be created."))
+                }
+
+                manifestMetadataByID[targetFile.id] = manifestMetadata
+                nextOutputPage = outputEnd + 1
+            }
+
+            let manifestDocuments = targetFilesToMerge.compactMap { manifestMetadataByID[$0.id] }
+            let compilationMetadata = CompilationManifestMetadata(
+                createdAt: Date(),
+                appVersion: appVersionForManifest(),
+                sourceCount: targetFilesToMerge.count,
+                originalPageCount: manifestDocuments.reduce(0) { $0 + $1.originalPageCount },
+                outputPageCount: manifestDocuments.reduce(0) { $0 + $1.originalPageCount } + manifestDocuments.count + 1,
+                manifestPageCount: manifestDocuments.count + 1,
+                documents: manifestDocuments
+            )
+            masterDocument.insert(CompilationManifestPage(metadata: compilationMetadata), at: masterDocument.pageCount)
+        }
+
+        for (index, targetFile) in targetFilesToMerge.enumerated() {
+            guard case .processing = currentViewModeSnapshot(), !isCancellationRequestedSnapshot() else {
+                return .failure(.mergeCancelled)
+            }
+
+            DispatchQueue.main.async {
+                self.currentFileIndex = index + 1
+                self.processingStatusLine = "File \(index + 1) of \(targetFilesToMerge.count)"
+                self.processingProgress = Double(index) / Double(max(targetFilesToMerge.count, 1))
+                self.processingSubtext = "Stitching and structural alignment for '\(targetFile.name)'..."
+            }
+
+            let fileError = autoreleasepool { () -> LocalStitchError? in
+                guard let currentDoc = PDFDocument(url: targetFile.url) else {
+                    return .corruptedFile(targetFile.name)
+                }
+
+                if targetFile.isLocked && !currentDoc.unlock(withPassword: targetFile.cachedPassword) {
+                    return .lockedFilesRemain
+                }
+
+                if shouldInjectManifests {
+                    DispatchQueue.main.async {
+                        self.processingSubtext = "Adding document context and integrity manifest..."
+                    }
+
+                    if let manifestMetadata = manifestMetadataByID[targetFile.id] {
+                        let manifestSheet = ManifestPage(metadata: manifestMetadata)
+                        masterDocument.insert(manifestSheet, at: masterDocument.pageCount)
+                    }
+                }
+
+                for pageIndex in 0..<currentDoc.pageCount {
+                    if isCancellationRequestedSnapshot() {
+                        return .mergeCancelled
+                    }
+
+                    if let extractedPage = currentDoc.page(at: pageIndex) {
+                        masterDocument.insert(extractedPage, at: masterDocument.pageCount)
+                    }
+                }
+
+                return nil
+            }
+
+            if let fileError {
+                return .failure(fileError)
+            }
+        }
+
+        if isCancellationRequestedSnapshot() {
+            return .failure(.mergeCancelled)
+        }
+
+        let didWriteMergedDocument = masterDocument.write(to: destinationURL)
+        let wasCancelledAfterWrite = isCancellationRequestedSnapshot()
+
+        if didWriteMergedDocument && wasCancelledAfterWrite {
+            try? FileManager.default.removeItem(at: destinationURL)
+        }
+
+        if wasCancelledAfterWrite {
+            return .failure(.mergeCancelled)
+        }
+
+        guard didWriteMergedDocument else {
+            return .failure(.writePermissionDenied)
+        }
+
+        return .success(masterDocument.pageCount)
+    }
+
+    private func copyFileReplacingExisting(from sourceURL: URL, to destinationURL: URL) throws {
+        guard FileManager.default.fileExists(atPath: destinationURL.path) else {
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            return
+        }
+
+        let stagedURL = destinationURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".LocalStitch-\(UUID().uuidString).pdf")
+        defer {
+            try? FileManager.default.removeItem(at: stagedURL)
+        }
+
+        try FileManager.default.copyItem(at: sourceURL, to: stagedURL)
+        _ = try FileManager.default.replaceItemAt(destinationURL, withItemAt: stagedURL)
+    }
+
+    private func clearCompressionEstimate() {
+        if let compressionEstimate {
+            try? FileManager.default.removeItem(at: compressionEstimate.outputURL)
+        }
+
+        compressionEstimate = nil
+        activeCompressionRequestID = nil
+    }
+
     func cancelMerge() {
         guard viewMode == .processing else { return }
         isCancellationRequested = true
+        switch processingPhase {
+        case .estimatingCompression:
+            processingTitle = "Cancelling estimate..."
+        case .merging:
+            processingTitle = "Cancelling merge..."
+        case .compressing:
+            processingTitle = "Cancelling compression..."
+        }
         processingSubtext = "Stopping after the current PDF operation..."
+    }
+
+    func cancelProcessing() {
+        cancelMerge()
     }
 
     func removeFile(_ file: PDFFile) {
         if let index = loadedFiles.firstIndex(of: file) {
+            clearCompressionEstimate()
             loadedFiles.remove(at: index)
             passwordUnlockMessage = ""
+            reduceSingleFileSize = loadedFiles.count <= 1
 
             if loadedFiles.isEmpty {
                 viewMode = .empty
@@ -582,12 +1116,36 @@ class PDFMergeEngine: ObservableObject {
         }
     }
 
+    func moveFiles(fromOffsets indices: IndexSet, toOffset newOffset: Int) {
+        clearCompressionEstimate()
+
+        let movingFiles = indices.sorted().map { loadedFiles[$0] }
+        for index in indices.sorted(by: >) {
+            loadedFiles.remove(at: index)
+        }
+
+        let removedBeforeDestination = indices.filter { $0 < newOffset }.count
+        let adjustedOffset = max(0, min(newOffset - removedBeforeDestination, loadedFiles.count))
+        loadedFiles.insert(contentsOf: movingFiles, at: adjustedOffset)
+    }
+
     func resetForNewMerge() {
+        clearCompressionEstimate()
         loadedFiles.removeAll()
         insertManifestPages = false
+        reduceSingleFileSize = true
+        reduceMergedFileSize = false
+        compressionLevel = .balanced
         globalPasswordInput = ""
         passwordUnlockMessage = ""
         processingSubtext = ""
+        processingStatusLine = ""
+        processingFooterSummary = ""
+        generatedFilename = ""
+        savedPageCount = 0
+        successSizeSummary = ""
+        successAdditionalNote = ""
+        finalSavedURL = nil
         isCancellationRequested = false
         viewMode = .empty
     }
@@ -609,6 +1167,36 @@ class PDFMergeEngine: ObservableObject {
     func handleDroppedURLs(_ urls: [URL]) {
         Logger.engine.info("Successfully received \(urls.count) drop targets.")
         addPDFURLs(urls)
+    }
+
+    static func formattedFileSize(_ bytes: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+
+    static func defaultCompressedFilename(for sourceURL: URL) -> String {
+        let baseName = sourceURL.deletingPathExtension().lastPathComponent
+        return "\(baseName)_compressed.pdf"
+    }
+
+    static func fileSizeSummary(label: String, bytes: UInt64?) -> String {
+        guard let bytes else { return "" }
+        return "\(label): \(formattedFileSize(bytes))"
+    }
+
+    static func compressionSummary(
+        originalLabel: String,
+        finalLabel: String,
+        measurement: PDFCompressionMeasurement
+    ) -> String {
+        if measurement.isLargerThanOriginal {
+            return "\(originalLabel): \(formattedFileSize(measurement.originalSizeBytes))   \(finalLabel): \(formattedFileSize(measurement.compressedSizeBytes))   Larger than original"
+        }
+
+        if measurement.hasLittleOrNoSavings {
+            return "\(originalLabel): \(formattedFileSize(measurement.originalSizeBytes))   \(finalLabel): \(formattedFileSize(measurement.compressedSizeBytes))   Little or no reduction"
+        }
+
+        return "\(originalLabel): \(formattedFileSize(measurement.originalSizeBytes))   \(finalLabel): \(formattedFileSize(measurement.compressedSizeBytes))   Saved: \(measurement.percentSaved)%"
     }
 
     private func buildManifestMetadata(
@@ -783,11 +1371,15 @@ class PDFMergeEngine: ObservableObject {
 }
 
 enum LocalStitchError: LocalizedError, Identifiable {
+    case compressedCopySaveFailed
+    case compressionCancelled
+    case compressionFailed(String)
     case corruptedFile(String)
     case fileLimitReached(Int)
     case importSummary(String, UUID)
     case lockedFilesRemain
     case mergeCancelled
+    case temporaryFileUnavailable
     case unsupportedFile(String)
     case writePermissionDenied
     case genericMergeFailure(String)
@@ -803,20 +1395,28 @@ enum LocalStitchError: LocalizedError, Identifiable {
 
     var errorDescription: String? {
         switch self {
+        case .compressedCopySaveFailed:
+            return "The reduced-size PDF could not be saved to that location. Choose another folder and try again."
+        case .compressionCancelled:
+            return "File size reduction was cancelled. Your original PDFs were not changed."
+        case .compressionFailed(let message):
+            return "Local Stitch could not reduce the PDF file size. \(message)"
         case .corruptedFile(let fileName):
             return "The file '\(fileName)' appears to be corrupted or isn't a structured PDF document."
         case .fileLimitReached(let limit):
-            return "Local Stitch can merge up to \(limit) PDFs at a time. Remove some files before adding more."
+            return "Local Stitch can process up to \(limit) PDFs at a time. Remove some files before adding more."
         case .importSummary(let message, _):
             return message
         case .lockedFilesRemain:
-            return "Unlock every password-protected PDF before merging."
+            return "Unlock every password-protected PDF before continuing."
         case .mergeCancelled:
-            return "The merge was cancelled. Your original PDFs were not changed."
+            return "The operation was cancelled. Your original PDFs were not changed."
+        case .temporaryFileUnavailable:
+            return "Local Stitch could not create a temporary local PDF for this operation."
         case .unsupportedFile(let fileName):
             return "'\(fileName)' is not a PDF file."
         case .writePermissionDenied:
-            return "The merged PDF could not be saved to that location. Choose another folder and try again."
+            return "The PDF could not be saved to that location. Choose another folder and try again."
         case .genericMergeFailure(let message):
             return "An unexpected error occurred during execution: \(message)"
         }

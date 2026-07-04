@@ -82,7 +82,7 @@ extension ContentView {
                 Text("Local Stitch")
                     .font(.system(size: 24, weight: .semibold))
 
-                Text("Private PDF merging for your Mac. No uploads.")
+                Text("Private PDF merging and file size reduction for your Mac. No uploads.")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
@@ -105,11 +105,11 @@ extension ContentView {
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)
-            workflowStep(number: 2, label: "Arrange Order", isActive: !engine.loadedFiles.isEmpty && engine.viewMode == .activeList)
+            workflowStep(number: 2, label: "Arrange / Options", isActive: !engine.loadedFiles.isEmpty && engine.viewMode == .activeList)
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)
-            workflowStep(number: 3, label: "Merge", isActive: engine.viewMode == .processing || engine.viewMode == .success)
+            workflowStep(number: 3, label: "Save", isActive: engine.viewMode == .processing || engine.viewMode == .success)
 
             Spacer()
 
@@ -182,7 +182,7 @@ extension ContentView {
             }
             .padding(.horizontal, 30)
 
-            Text("Your PDFs are read locally and the merged file is saved only where you choose.")
+            Text("Your PDFs are read locally and saved only where you choose.")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -221,10 +221,16 @@ extension ContentView {
                             .foregroundColor(.secondary)
                             .frame(width: 24, alignment: .trailing)
 
-                        Text(file.name)
-                            .font(.system(size: 13))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(file.name)
+                                .font(.system(size: 13))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            Text(PDFMergeEngine.formattedFileSize(file.fileSizeBytes))
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
 
                         Spacer()
 
@@ -240,13 +246,21 @@ extension ContentView {
                             .foregroundColor(.orange)
                             .cornerRadius(4)
                         } else {
-                            Text("\(file.pageCount ?? 0) Pages")
-                                .font(.system(size: 11))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(file.isLocked ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
-                                .foregroundColor(file.isLocked ? .green : .primary)
-                                .cornerRadius(4)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text("\(file.pageCount ?? 0) Pages")
+                                    .font(.system(size: 11))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(file.isLocked ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
+                                    .foregroundColor(file.isLocked ? .green : .primary)
+                                    .cornerRadius(4)
+
+                                if file.isLocked {
+                                    Text("Unlocked")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         }
 
                         Button(action: {
@@ -266,7 +280,7 @@ extension ContentView {
                     )
                 }
                 .onMove { indices, newOffset in
-                    engine.loadedFiles.move(fromOffsets: indices, toOffset: newOffset)
+                    engine.moveFiles(fromOffsets: indices, toOffset: newOffset)
                 }
             }
             .listStyle(.sidebar)
@@ -276,12 +290,14 @@ extension ContentView {
     private var processingComponent: some View {
         VStack(spacing: 20) {
             VStack(spacing: 4) {
-                Text(engine.isCancellationRequested ? "Cancelling merge..." : "Merging PDFs...")
+                Text(engine.processingTitle.isEmpty ? "Processing PDFs..." : engine.processingTitle)
                     .font(.system(size: 18, weight: .semibold))
 
-                Text("File \(engine.currentFileIndex) of \(engine.totalFileCount)")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                if !engine.processingStatusLine.isEmpty {
+                    Text(engine.processingStatusLine)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
             }
 
             ProgressView(value: engine.processingProgress, total: 1.0)
@@ -304,14 +320,34 @@ extension ContentView {
                 .foregroundColor(.green)
 
             VStack(spacing: 6) {
-                Text("Merged PDF saved")
+                Text(engine.successTitle)
                     .font(.system(size: 18, weight: .bold))
 
-                Text("Saved '\(engine.generatedFilename)' with \(engine.estimatedPageCount) pages. No files were uploaded.")
+                Text(engine.successDetail)
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(width: 450)
+
+                if !engine.successSizeSummary.isEmpty {
+                    Text(engine.successSizeSummary)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 520)
+                }
+
+                if !engine.successAdditionalNote.isEmpty {
+                    Text(engine.successAdditionalNote)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 480)
+                }
+
+                Text("No files were uploaded.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
             }
 
             Button(action: { engine.openOutputLocation() }) {
@@ -328,101 +364,292 @@ extension ContentView {
     private var footerControlComponent: some View {
         VStack(spacing: 14) {
             if engine.hasRemainingLockedFiles && engine.viewMode == .activeList {
-                let lockedCount = engine.remainingLockedFileCount
-                HStack(spacing: 10) {
-                    Image(systemName: "lock.fill")
-                        .foregroundColor(.orange)
-                        .font(.system(size: 12))
+                lockedPDFPasswordComponent
+            }
 
-                    Text("\(lockedCount) protected PDF\(lockedCount == 1 ? "" : "s") need a password.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-
-                    SecureField("Enter Password", text: $engine.globalPasswordInput)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 150)
-                        .onSubmit {
-                            engine.checkPasswordUnlock()
-                        }
-
-                    Button("Apply to All") {
-                        engine.checkPasswordUnlock()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(engine.globalPasswordInput.isEmpty)
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity)
-                .background(Color.orange.opacity(0.06))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.orange.opacity(0.15), lineWidth: 1)
-                )
-
-                if !engine.passwordUnlockMessage.isEmpty {
-                    Text(engine.passwordUnlockMessage)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            if engine.viewMode == .activeList && !engine.loadedFiles.isEmpty {
+                if engine.isSingleFileWorkflow {
+                    singlePDFOutputOptions
+                } else {
+                    multiplePDFOutputOptions
                 }
             }
+
+            Divider()
+
+            HStack {
+                footerStatusText
+
+                Spacer()
+
+                footerActionButtons
+            }
+        }
+        .padding(16)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private var lockedPDFPasswordComponent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            let lockedCount = engine.remainingLockedFileCount
+            HStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 12))
+
+                Text("\(lockedCount) protected PDF\(lockedCount == 1 ? "" : "s") need a password.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+
+                SecureField("Enter Password", text: $engine.globalPasswordInput)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
+                    .onSubmit {
+                        engine.checkPasswordUnlock()
+                    }
+
+                Button("Apply to All") {
+                    engine.checkPasswordUnlock()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(engine.globalPasswordInput.isEmpty)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(Color.orange.opacity(0.06))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.orange.opacity(0.15), lineWidth: 1)
+            )
+
+            if !engine.passwordUnlockMessage.isEmpty {
+                Text(engine.passwordUnlockMessage)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var singlePDFOutputOptions: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Output Options")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            Toggle("Reduce file size", isOn: Binding(
+                get: { engine.reduceSingleFileSize },
+                set: { engine.setReduceSingleFileSize($0) }
+            ))
+            .toggleStyle(.checkbox)
+            .font(.system(size: 13, weight: .medium))
+            .disabled(engine.hasRemainingLockedFiles)
+
+            if engine.reduceSingleFileSize {
+                compressionLevelControl
+                    .padding(.leading, 20)
+                    .disabled(engine.hasRemainingLockedFiles)
+
+                if let estimate = engine.compressionEstimate {
+                    compressionEstimateRows(estimate)
+                        .padding(.leading, 20)
+                } else {
+                    Text(engine.hasRemainingLockedFiles ? "Disabled until protected PDFs are unlocked." : "Estimate: click Reduce File Size to create a measured local estimate.")
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
+
+                compressionCautionText
+                    .padding(.leading, 20)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var multiplePDFOutputOptions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Output Options")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Add source summary pages for AI review", isOn: $engine.insertManifestPages)
                     .toggleStyle(.checkbox)
                     .font(.system(size: 13, weight: .medium))
-                    .disabled(engine.viewMode == .processing || engine.viewMode == .success)
+                    .disabled(engine.hasRemainingLockedFiles)
 
-                Text("Adds a first-page overview and one summary page before each PDF with filename, page range, metadata, and SHA-256 fingerprint.")
+                Text("Adds an overview and one summary page before each PDF with filename, page range, metadata, and SHA-256 fingerprint.")
                     .font(.system(size: 11, weight: .light))
                     .foregroundColor(.secondary)
                     .padding(.leading, 20)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Divider()
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Reduce file size after merge", isOn: $engine.reduceMergedFileSize)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 13, weight: .medium))
+                    .disabled(engine.hasRemainingLockedFiles)
 
-            HStack {
-                if engine.viewMode == .success {
-                    Text("Operation Finished")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.green)
-                } else {
-                    let manifestPageCount = engine.loadedFiles.count + 1
-                    let manifestOverheadText = (engine.insertManifestPages && !engine.loadedFiles.isEmpty ? " including \(manifestPageCount) summary pages" : "")
-                    Text("Estimated output: \(engine.estimatedPageCount) pages" + manifestOverheadText)
-                        .font(.system(size: 12, weight: engine.viewMode == .activeList && !engine.hasRemainingLockedFiles ? .bold : .regular))
-                        .foregroundColor(engine.viewMode == .activeList && !engine.hasRemainingLockedFiles ? .primary : .secondary)
-                }
+                if engine.reduceMergedFileSize {
+                    compressionLevelControl
+                        .padding(.leading, 20)
+                        .disabled(engine.hasRemainingLockedFiles)
 
-                Spacer()
+                    Text("Size estimate will be measured after the merged PDF is created locally.")
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
 
-                if engine.viewMode == .processing {
-                    Button("Cancel") {
-                        engine.cancelMerge()
-                    }
-                    .controlSize(.large)
-                    .disabled(engine.isCancellationRequested)
-                } else if engine.viewMode == .success {
-                    Button("Start New Merge") {
-                        engine.resetForNewMerge()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                } else {
-                    Button("Merge PDFs") {
-                        engine.executeProductionMergePipeline()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(engine.loadedFiles.isEmpty || engine.hasRemainingLockedFiles)
+                    compressionCautionText
+                        .padding(.leading, 20)
                 }
             }
         }
-        .padding(16)
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var compressionLevelControl: some View {
+        HStack(spacing: 8) {
+            Text("Level:")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+
+            Picker("Compression Level", selection: Binding(
+                get: { engine.compressionLevel },
+                set: { engine.setCompressionLevel($0) }
+            )) {
+                ForEach(PDFCompressionLevel.allCases) { level in
+                    Text(level.displayName).tag(level)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 150)
+
+            Text(engine.compressionLevel.detailText)
+                .font(.system(size: 11, weight: .light))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    private func compressionEstimateRows(_ estimate: PDFCompressionMeasurement) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            metricRow("Original size", PDFMergeEngine.formattedFileSize(estimate.originalSizeBytes))
+            metricRow("Estimated new size", PDFMergeEngine.formattedFileSize(estimate.compressedSizeBytes))
+
+            if estimate.isLargerThanOriginal {
+                metricRow("Estimated savings", "Larger by \(PDFMergeEngine.formattedFileSize(UInt64(abs(estimate.bytesSaved))))")
+                Text("The reduced copy is larger than the original. Keep the original unless you need a rewritten copy.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            } else if estimate.hasLittleOrNoSavings {
+                metricRow("Estimated savings", "Less than 3%")
+                Text("This PDF may already be optimized. You can still save a rewritten copy.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            } else {
+                metricRow("Estimated savings", "\(PDFMergeEngine.formattedFileSize(UInt64(estimate.bytesSaved))) (\(estimate.percentSaved)%)")
+            }
+        }
+    }
+
+    private func metricRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .frame(width: 120, alignment: .leading)
+
+            Text(value)
+                .font(.system(size: 11, weight: .medium))
+        }
+    }
+
+    private var compressionCautionText: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if engine.hasUnlockedProtectedFiles {
+                Label("Output copies are saved without the original PDF password.", systemImage: "lock.open")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+
+            if engine.hasRewriteSensitivePDFs {
+                Label("Forms or annotations may be rewritten. Review the saved copy before sharing.", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var footerStatusText: some View {
+        Group {
+            if engine.viewMode == .success {
+                Text("Operation Finished")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.green)
+            } else if engine.viewMode == .processing, !engine.processingFooterSummary.isEmpty {
+                Text(engine.processingFooterSummary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+            } else {
+                Text(engine.footerEstimateText)
+                    .font(.system(size: 12, weight: engine.viewMode == .activeList && !engine.hasRemainingLockedFiles ? .bold : .regular))
+                    .foregroundColor(engine.viewMode == .activeList && !engine.hasRemainingLockedFiles ? .primary : .secondary)
+            }
+        }
+    }
+
+    private var footerActionButtons: some View {
+        Group {
+            if engine.viewMode == .processing {
+                Button("Cancel") {
+                    engine.cancelProcessing()
+                }
+                .controlSize(.large)
+                .disabled(engine.isCancellationRequested)
+            } else if engine.viewMode == .success {
+                Button("Start New Task") {
+                    engine.resetForNewMerge()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            } else if engine.shouldPreferKeepOriginal {
+                Button("Save Copy Anyway") {
+                    engine.saveSingleFileCompressedCopy()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button("Keep Original") {
+                    engine.keepOriginalSingleFile()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            } else if engine.shouldOfferKeepOriginal {
+                Button("Keep Original") {
+                    engine.keepOriginalSingleFile()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button("Save Copy Anyway") {
+                    engine.saveSingleFileCompressedCopy()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            } else {
+                Button(engine.primaryActionTitle) {
+                    engine.performPrimaryAction()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!engine.canPerformPrimaryAction)
+            }
+        }
     }
 }
 

@@ -1,18 +1,28 @@
 # Local Stitch
 
-Local Stitch is a free, local-first macOS app for merging user-selected PDF files into one organized PDF.
+Local Stitch is a free, local-first macOS app for merging user-selected PDF files and reducing PDF file size.
 
-It is built for sensitive document workflows where uploading files to an online PDF tool is a bad fit. Local Stitch runs on your Mac, uses only the PDFs you choose, and saves the merged PDF only to the destination you select.
+It is built for sensitive document workflows where uploading files to an online PDF tool is a bad fit. Local Stitch runs on your Mac, uses only the PDFs you choose, and saves output PDFs only to the destination you select.
 
 ## What It Does
 
 - Merge up to 100 PDF files into one PDF.
+- Reduce the file size of a single selected PDF.
+- Optionally reduce file size after merging multiple PDFs.
 - Add PDFs with drag and drop or the macOS file picker.
 - Reorder files before merging.
 - Remove files from the merge list.
 - Unlock password-protected PDFs before merging.
 - Optionally add source summary pages for AI review.
-- Show merge progress and reveal the exported PDF in Finder.
+- Show merge and compression progress and reveal the exported PDF in Finder.
+
+## Reduce File Size
+
+With one PDF selected, Local Stitch offers `Reduce File Size`. It creates a temporary local candidate, measures the actual output size, then lets you save the copy with the native macOS save panel.
+
+With multiple PDFs selected, you can turn on `Reduce file size after merge`. Local Stitch merges first, then uses PDFKit image rewrite options to reduce the final merged PDF where possible. Some PDFs are already optimized or mostly text, so the rewritten copy may save little space or even become larger.
+
+Compressed copies are saved without preserving the original PDF password, matching the app's current merged-output behavior.
 
 ## Source Summary Pages
 
@@ -31,8 +41,8 @@ Local Stitch is designed around local-first privacy:
 - No subscription is required.
 - No files are uploaded by the app.
 - No analytics or usage tracking is collected by the app.
-- PDF inspection, password unlock, hashing, summary-page creation, and merging happen locally on your Mac.
-- The merged PDF is written only to the destination you choose.
+- PDF inspection, password unlock, hashing, summary-page creation, merging, and file size reduction happen locally on your Mac.
+- Output PDFs are written only to the destination you choose.
 
 Privacy policy: https://moeed.com/privacy/
 

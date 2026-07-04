@@ -1,0 +1,1486 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Stitch Wireframes</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #ececf0;
+      --panel: #f7f7f8;
+      --window: #fbfbfc;
+      --bar: #f5f5f7;
+      --line: #d9d9de;
+      --line-soft: #e8e8ec;
+      --text: #1f2328;
+      --muted: #6e7178;
+      --soft: #8f939a;
+      --blue: #0a84ff;
+      --blue-dark: #0066d6;
+      --green: #30a46c;
+      --orange: #c76a12;
+      --orange-bg: #fff5e8;
+      --shadow: 0 26px 70px rgba(25, 27, 33, 0.16), 0 4px 18px rgba(25, 27, 33, 0.08);
+      --radius-window: 18px;
+      --radius-control: 7px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0) 280px),
+        var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: 260px minmax(840px, 1fr);
+      gap: 34px;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 34px 64px;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 10px 30px rgba(25, 27, 33, 0.08);
+      backdrop-filter: blur(16px);
+    }
+
+    .sidebar h1 {
+      margin: 0 0 5px;
+      font-size: 20px;
+      line-height: 1.16;
+      font-weight: 680;
+    }
+
+    .sidebar p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.42;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 5px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .nav-list a {
+      display: block;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: #383b42;
+      text-decoration: none;
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .nav-list a:hover {
+      background: rgba(10, 132, 255, 0.10);
+      color: var(--blue-dark);
+    }
+
+    .content {
+      min-width: 0;
+    }
+
+    .intro {
+      margin: 0 0 28px;
+      padding: 4px 2px;
+    }
+
+    .intro h2 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.12;
+      font-weight: 720;
+    }
+
+    .intro p {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.48;
+    }
+
+    .screen {
+      margin: 0 0 48px;
+      scroll-margin-top: 24px;
+    }
+
+    .screen-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+      width: 820px;
+      margin: 0 0 12px;
+    }
+
+    .screen-title h3 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 680;
+    }
+
+    .screen-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: right;
+    }
+
+    .mac-window {
+      width: 820px;
+      min-height: 620px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 0, 0, 0.14);
+      border-radius: var(--radius-window);
+      background: var(--window);
+      box-shadow: var(--shadow);
+    }
+
+    .window-chrome {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 34px;
+      padding: 0 14px;
+      background: linear-gradient(#fdfdfd, #eeeeef);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .traffic {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+
+    .traffic.red { background: #ff5f57; }
+    .traffic.yellow { background: #ffbd2e; }
+    .traffic.green { background: #28c840; }
+
+    .chrome-title {
+      flex: 1;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 520;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 586px;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-height: 80px;
+      padding: 16px 24px;
+      background: var(--bar);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .app-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      object-fit: cover;
+    }
+
+    .brand h4 {
+      margin: 0 0 3px;
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 650;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .version {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 520;
+    }
+
+    .steps {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 40px;
+      padding: 0 24px;
+      background: rgba(120, 120, 128, 0.08);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .step {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .step-dot {
+      display: grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(120, 120, 128, 0.16);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 720;
+    }
+
+    .step.active {
+      color: var(--text);
+      font-weight: 640;
+    }
+
+    .step.active .step-dot {
+      color: white;
+      background: var(--blue);
+    }
+
+    .chevron {
+      color: var(--soft);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .limit {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 570;
+    }
+
+    .main {
+      flex: 1;
+      min-height: 356px;
+      background: #ffffff;
+    }
+
+    .drop-wrap {
+      display: grid;
+      place-items: center;
+      min-height: 356px;
+      padding: 30px;
+    }
+
+    .dropzone {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      min-height: 240px;
+      border: 2px dashed rgba(110, 113, 120, 0.32);
+      border-radius: 12px;
+      background: #fdfdfd;
+      text-align: center;
+    }
+
+    .drop-inner {
+      display: grid;
+      justify-items: center;
+      gap: 13px;
+    }
+
+    .doc-symbol {
+      position: relative;
+      width: 38px;
+      height: 48px;
+      border: 2px solid #9ca3af;
+      border-radius: 6px;
+      background: white;
+    }
+
+    .doc-symbol::before {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: -2px;
+      width: 14px;
+      height: 14px;
+      border-left: 2px solid #9ca3af;
+      border-bottom: 2px solid #9ca3af;
+      background: #f4f4f5;
+      border-radius: 0 5px 0 4px;
+    }
+
+    .doc-symbol::after {
+      content: "+";
+      position: absolute;
+      right: -9px;
+      bottom: -8px;
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--blue);
+      color: white;
+      font-size: 16px;
+      line-height: 1;
+      font-weight: 680;
+    }
+
+    .drop-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 650;
+    }
+
+    .drop-copy {
+      margin: -8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .local-note {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .list-top {
+      display: flex;
+      align-items: center;
+      height: 42px;
+      padding: 0 16px;
+      background: rgba(120, 120, 128, 0.07);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .list-top strong {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 570;
+    }
+
+    .list-top .button {
+      margin-left: auto;
+    }
+
+    .pdf-list {
+      margin: 0;
+      padding: 7px 8px;
+      list-style: none;
+    }
+
+    .pdf-row {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 7px 8px;
+      border-radius: 6px;
+    }
+
+    .pdf-row + .pdf-row {
+      margin-top: 2px;
+    }
+
+    .pdf-row.highlight-orange {
+      background: rgba(255, 149, 0, 0.05);
+    }
+
+    .row-num {
+      color: var(--muted);
+      text-align: right;
+      font-family: "SF Mono", ui-monospace, Menlo, monospace;
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .file-name {
+      min-width: 0;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-size {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: rgba(120, 120, 128, 0.12);
+      color: var(--text);
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .pill.locked {
+      background: rgba(255, 149, 0, 0.15);
+      color: var(--orange);
+      font-weight: 620;
+    }
+
+    .remove {
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #a5a7ad;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .footer {
+      padding: 14px 16px 16px;
+      background: var(--bar);
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .footer-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .warning-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 10px;
+      border: 1px solid rgba(255, 149, 0, 0.18);
+      border-radius: 8px;
+      background: var(--orange-bg);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .lock-dot {
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      color: var(--orange);
+      background: rgba(255, 149, 0, 0.12);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .field {
+      height: 28px;
+      width: 150px;
+      padding: 0 9px;
+      border: 1px solid #cfd1d6;
+      border-radius: 6px;
+      background: white;
+      color: #989aa1;
+      line-height: 28px;
+    }
+
+    .option {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .check {
+      width: 14px;
+      height: 14px;
+      margin-top: 2px;
+      border: 1px solid #aeb2ba;
+      border-radius: 3px;
+      background: white;
+    }
+
+    .check.on {
+      border-color: var(--blue);
+      background: var(--blue);
+      box-shadow: inset 0 0 0 2px var(--blue);
+    }
+
+    .check.on::after {
+      content: "";
+      display: block;
+      width: 7px;
+      height: 4px;
+      margin: 3px 0 0 3px;
+      border-left: 2px solid white;
+      border-bottom: 2px solid white;
+      transform: rotate(-45deg);
+    }
+
+    .option-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 18px;
+      font-size: 13px;
+      font-weight: 570;
+    }
+
+    .option-copy {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .select {
+      display: inline-flex;
+      align-items: center;
+      min-width: 116px;
+      height: 26px;
+      padding: 0 27px 0 10px;
+      border: 1px solid #cfd1d6;
+      border-radius: 6px;
+      background:
+        linear-gradient(180deg, #fff, #f0f0f2);
+      color: var(--text);
+      font-size: 12px;
+      position: relative;
+    }
+
+    .select::after {
+      content: "⌄";
+      position: absolute;
+      right: 9px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .inline-panel {
+      margin: 8px 0 0 22px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .size-grid {
+      display: grid;
+      grid-template-columns: 140px auto;
+      gap: 5px 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .size-grid strong {
+      color: var(--text);
+      font-weight: 620;
+    }
+
+    .size-good {
+      color: var(--green);
+      font-weight: 650;
+    }
+
+    .size-warn {
+      color: var(--orange);
+      font-weight: 650;
+    }
+
+    .footer-bottom {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .estimate {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .estimate.ready {
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      padding: 0 13px;
+      border: 1px solid rgba(0,0,0,0.16);
+      border-radius: var(--radius-control);
+      background: linear-gradient(180deg, #fff, #eeeeef);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .button.small {
+      min-height: 24px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+
+    .button.primary {
+      border-color: rgba(0, 81, 176, 0.75);
+      background: linear-gradient(180deg, #168bff, #006ee6);
+      color: white;
+      font-weight: 620;
+    }
+
+    .button.disabled {
+      border-color: transparent;
+      background: #e4e5e8;
+      color: #a5a7ad;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    .processing {
+      display: grid;
+      place-items: center;
+      min-height: 356px;
+      text-align: center;
+    }
+
+    .processing-card {
+      display: grid;
+      justify-items: center;
+      gap: 13px;
+      width: 460px;
+    }
+
+    .processing h4 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 660;
+    }
+
+    .processing p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .progress {
+      width: 320px;
+      height: 7px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e3e4e8;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #0a84ff, #58a9ff);
+    }
+
+    .success {
+      display: grid;
+      place-items: center;
+      min-height: 356px;
+      text-align: center;
+    }
+
+    .success-card {
+      display: grid;
+      justify-items: center;
+      gap: 14px;
+      width: 520px;
+    }
+
+    .success-mark {
+      display: grid;
+      place-items: center;
+      width: 52px;
+      height: 52px;
+      border-radius: 999px;
+      background: var(--green);
+      color: white;
+      font-size: 31px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .success h4 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      font-weight: 720;
+    }
+
+    .success p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.38;
+    }
+
+    .modal-overlay {
+      position: relative;
+      min-height: 356px;
+      background: rgba(246, 246, 247, 0.82);
+    }
+
+    .modal {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 420px;
+      transform: translate(-50%, -50%);
+      padding: 24px;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 14px;
+      background: white;
+      box-shadow: 0 20px 54px rgba(25, 27, 33, 0.18);
+      text-align: center;
+    }
+
+    .modal .app-icon {
+      width: 72px;
+      height: 72px;
+    }
+
+    .modal h4 {
+      margin: 10px 0 3px;
+      font-size: 24px;
+      font-weight: 680;
+    }
+
+    .modal p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .modal hr {
+      border: 0;
+      border-top: 1px solid var(--line-soft);
+      margin: 18px 0;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 9px 14px;
+      text-align: left;
+      font-size: 12px;
+    }
+
+    .info-grid dt {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 570;
+    }
+
+    .info-grid dd {
+      margin: 0;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .notes {
+      width: 820px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .notes strong {
+      color: var(--text);
+    }
+
+    @media (max-width: 1120px) {
+      .page {
+        display: block;
+        padding: 22px 18px 48px;
+      }
+
+      .sidebar {
+        position: static;
+        margin-bottom: 28px;
+      }
+
+      .nav-list {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1>Local Stitch Wireframes</h1>
+      <p>HTML review frames for the current macOS app and proposed PDF size reduction workflow.</p>
+      <ol class="nav-list">
+        <li><a href="#empty">Empty State</a></li>
+        <li><a href="#single">Single PDF</a></li>
+        <li><a href="#locked">Locked PDF</a></li>
+        <li><a href="#estimate">Estimate In Progress</a></li>
+        <li><a href="#estimate-ready">Estimate Ready</a></li>
+        <li><a href="#optimized">Already Optimized</a></li>
+        <li><a href="#multiple">Multiple PDFs</a></li>
+        <li><a href="#manifest">AI Summary Pages</a></li>
+        <li><a href="#merge-compress">Merge & Compress</a></li>
+        <li><a href="#merge-processing">Merge Processing</a></li>
+        <li><a href="#compress-processing">Compression Processing</a></li>
+        <li><a href="#merge-success">Merge Success</a></li>
+        <li><a href="#compress-success">Compression Success</a></li>
+        <li><a href="#combined-success">Combined Success</a></li>
+        <li><a href="#app-info">App Info</a></li>
+      </ol>
+    </aside>
+
+    <main class="content">
+      <section class="intro">
+        <h2>Compression UX Review</h2>
+        <p>These wireframes keep Local Stitch as a single-window Mac utility. The main change is an adaptive output area: one PDF can be reduced directly, while multiple PDFs can be merged normally or merged and reduced in one flow.</p>
+      </section>
+
+      <section class="screen" id="empty">
+        <div class="screen-title">
+          <h3>1. Empty State</h3>
+          <p>Current start screen, with copy widened to include file size reduction later.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome">
+            <span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span>
+            <span class="chrome-title">Local Stitch</span>
+          </div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand">
+                <h4>Local Stitch</h4>
+                <span>Private PDF merging and file size reduction for your Mac. No uploads.</span>
+              </div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps">
+              <span class="step active"><span class="step-dot">1</span>Add PDFs</span>
+              <span class="chevron">›</span>
+              <span class="step"><span class="step-dot">2</span>Arrange / Options</span>
+              <span class="chevron">›</span>
+              <span class="step"><span class="step-dot">3</span>Save</span>
+              <span class="limit">Up to 100 PDFs</span>
+            </div>
+            <main class="main">
+              <div class="drop-wrap">
+                <div>
+                  <div class="dropzone">
+                    <div class="drop-inner">
+                      <span class="doc-symbol"></span>
+                      <p class="drop-title">Drop PDFs here</p>
+                      <p class="drop-copy">or choose files from your Mac</p>
+                      <span class="button primary">Choose PDFs</span>
+                    </div>
+                  </div>
+                  <p class="local-note">Your PDFs are read locally and saved only where you choose.</p>
+                </div>
+              </div>
+            </main>
+            <footer class="footer">
+              <div class="footer-bottom" style="border-top:0;padding-top:0;">
+                <span class="estimate">Estimated output: 0 pages</span>
+                <span class="spacer"></span>
+                <span class="button primary disabled">Merge PDFs</span>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="single">
+        <div class="screen-title">
+          <h3>2. Single PDF Added</h3>
+          <p>Compression becomes the natural primary task for one PDF.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome">
+            <span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span>
+            <span class="chrome-title">Local Stitch</span>
+          </div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand">
+                <h4>Local Stitch</h4>
+                <span>Private PDF merging and file size reduction for your Mac. No uploads.</span>
+              </div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps">
+              <span class="step"><span class="step-dot">1</span>Add PDFs</span>
+              <span class="chevron">›</span>
+              <span class="step active"><span class="step-dot">2</span>Arrange / Options</span>
+              <span class="chevron">›</span>
+              <span class="step"><span class="step-dot">3</span>Save</span>
+              <span class="limit">Up to 100 PDFs</span>
+            </div>
+            <main class="main">
+              <div class="list-top">
+                <strong>1 of 100 PDFs added</strong>
+                <span class="button small">Add PDFs</span>
+              </div>
+              <ul class="pdf-list">
+                <li class="pdf-row">
+                  <span class="row-num">1</span>
+                  <span class="file-name">bank_statement_january.pdf <span class="file-size">18.4 MB</span></span>
+                  <span class="pill">12 Pages</span>
+                  <button class="remove" aria-label="Remove">×</button>
+                </li>
+              </ul>
+            </main>
+            <footer class="footer">
+              <div class="footer-stack">
+                <div class="option">
+                  <span class="check on"></span>
+                  <div>
+                    <div class="option-title">Reduce file size <span class="select">Balanced</span></div>
+                    <p class="option-copy">Creates a temporary local copy to measure the reduced size before saving.</p>
+                  </div>
+                </div>
+                <div class="footer-bottom">
+                  <span class="estimate ready">Estimated output: 12 pages, 18.4 MB</span>
+                  <span class="spacer"></span>
+                  <span class="button primary">Reduce File Size</span>
+                </div>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="locked">
+        <div class="screen-title">
+          <h3>3. Locked Single PDF</h3>
+          <p>Password handling remains a prerequisite for merge or compression.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome">
+            <span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span>
+            <span class="chrome-title">Local Stitch</span>
+          </div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps">
+              <span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span>
+              <span class="step active"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span>
+              <span class="step"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span>
+            </div>
+            <main class="main">
+              <div class="list-top"><strong>1 of 100 PDFs added</strong><span class="button small">Add PDFs</span></div>
+              <ul class="pdf-list">
+                <li class="pdf-row highlight-orange">
+                  <span class="row-num">1</span>
+                  <span class="file-name">statement_locked.pdf <span class="file-size">2.1 MB</span></span>
+                  <span class="pill locked">Locked</span>
+                  <button class="remove" aria-label="Remove">×</button>
+                </li>
+              </ul>
+            </main>
+            <footer class="footer">
+              <div class="footer-stack">
+                <div class="warning-strip">
+                  <span class="lock-dot">L</span>
+                  <span>1 protected PDF needs a password.</span>
+                  <span class="field">Enter Password</span>
+                  <span class="button primary small">Apply to All</span>
+                </div>
+                <div class="option">
+                  <span class="check on"></span>
+                  <div>
+                    <div class="option-title">Reduce file size <span class="select">Balanced</span></div>
+                    <p class="option-copy">Available after the protected PDF is unlocked.</p>
+                  </div>
+                </div>
+                <div class="footer-bottom">
+                  <span class="estimate">Estimated output: locked PDF must be unlocked first</span>
+                  <span class="spacer"></span>
+                  <span class="button primary disabled">Reduce File Size</span>
+                </div>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="estimate">
+        <div class="screen-title">
+          <h3>4. Estimate In Progress</h3>
+          <p>Actual size is measured from a temporary local PDFKit output.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps">
+              <span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span>
+              <span class="step"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span>
+              <span class="step active"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span>
+            </div>
+            <main class="main processing">
+              <div class="processing-card">
+                <h4>Estimating reduced file size...</h4>
+                <div class="progress"><span style="width:62%"></span></div>
+                <p>Creating a temporary local copy. No files are uploaded.</p>
+              </div>
+            </main>
+            <footer class="footer">
+              <div class="footer-bottom" style="border-top:0;padding-top:0;">
+                <span class="estimate">Original: 18.4 MB</span>
+                <span class="spacer"></span>
+                <span class="button">Cancel</span>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="estimate-ready">
+        <div class="screen-title">
+          <h3>5. Estimate Ready</h3>
+          <p>Measured savings before the user chooses where to save.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps">
+              <span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span>
+              <span class="step active"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span>
+              <span class="step"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span>
+            </div>
+            <main class="main">
+              <div class="list-top"><strong>1 of 100 PDFs added</strong><span class="button small">Add PDFs</span></div>
+              <ul class="pdf-list">
+                <li class="pdf-row">
+                  <span class="row-num">1</span>
+                  <span class="file-name">bank_statement_january.pdf <span class="file-size">18.4 MB</span></span>
+                  <span class="pill">12 Pages</span>
+                  <button class="remove" aria-label="Remove">×</button>
+                </li>
+              </ul>
+            </main>
+            <footer class="footer">
+              <div class="footer-stack">
+                <div class="option">
+                  <span class="check on"></span>
+                  <div>
+                    <div class="option-title">Reduce file size <span class="select">Balanced</span></div>
+                    <div class="inline-panel">
+                      <div class="size-grid">
+                        <span>Original size</span><strong>18.4 MB</strong>
+                        <span>Estimated new size</span><strong>12.1 MB</strong>
+                        <span>Estimated savings</span><strong class="size-good">6.3 MB (34%)</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="footer-bottom">
+                  <span class="estimate ready">Estimated output: 12 pages, about 12.1 MB</span>
+                  <span class="spacer"></span>
+                  <span class="button primary">Save Compressed Copy</span>
+                </div>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="optimized">
+        <div class="screen-title">
+          <h3>6. Already Optimized</h3>
+          <p>No-op compression needs reassuring, truthful feedback.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps">
+              <span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span>
+              <span class="step active"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span>
+              <span class="step"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span>
+            </div>
+            <main class="main">
+              <div class="list-top"><strong>1 of 100 PDFs added</strong><span class="button small">Add PDFs</span></div>
+              <ul class="pdf-list">
+                <li class="pdf-row">
+                  <span class="row-num">1</span>
+                  <span class="file-name">contract_text_only.pdf <span class="file-size">2.4 MB</span></span>
+                  <span class="pill">18 Pages</span>
+                  <button class="remove" aria-label="Remove">×</button>
+                </li>
+              </ul>
+            </main>
+            <footer class="footer">
+              <div class="footer-stack">
+                <div class="option">
+                  <span class="check on"></span>
+                  <div>
+                    <div class="option-title">Reduce file size <span class="select">Smallest PDF</span></div>
+                    <div class="inline-panel">
+                      <div class="size-grid">
+                        <span>Original size</span><strong>2.4 MB</strong>
+                        <span>Estimated new size</span><strong>2.4 MB</strong>
+                        <span>Estimated savings</span><strong class="size-warn">Less than 3%</strong>
+                      </div>
+                      <p class="option-copy" style="margin-top:8px;">This PDF may already be optimized. You can keep the original or save a rewritten copy.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="footer-bottom">
+                  <span class="estimate">Estimated output: little or no reduction</span>
+                  <span class="spacer"></span>
+                  <span class="button">Keep Original</span>
+                  <span class="button primary">Save Copy Anyway</span>
+                </div>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="multiple">
+        <div class="screen-title">
+          <h3>7. Multiple PDFs</h3>
+          <p>Existing merge flow remains the default for multiple PDFs.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps">
+              <span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span>
+              <span class="step active"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span>
+              <span class="step"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span>
+            </div>
+            <main class="main">
+              <div class="list-top"><strong>4 of 100 PDFs added</strong><span class="button small">Add PDFs</span></div>
+              <ul class="pdf-list">
+                <li class="pdf-row"><span class="row-num">1</span><span class="file-name">bank_statement_january.pdf <span class="file-size">18.4 MB</span></span><span class="pill">12 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">2</span><span class="file-name">bank_statement_february.pdf <span class="file-size">17.8 MB</span></span><span class="pill">11 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">3</span><span class="file-name">email_export_part_1.pdf <span class="file-size">9.2 MB</span></span><span class="pill">80 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">4</span><span class="file-name">receipts.pdf <span class="file-size">31.5 MB</span></span><span class="pill">26 Pages</span><button class="remove">×</button></li>
+              </ul>
+            </main>
+            <footer class="footer">
+              <div class="footer-stack">
+                <div class="option"><span class="check"></span><div><div class="option-title">Add source summary pages for AI review</div><p class="option-copy">Adds overview and per-document summary pages.</p></div></div>
+                <div class="option"><span class="check"></span><div><div class="option-title">Reduce file size after merge</div></div></div>
+                <div class="footer-bottom">
+                  <span class="estimate ready">Estimated output: 129 pages, about 76.9 MB input size</span>
+                  <span class="spacer"></span>
+                  <span class="button primary">Merge PDFs</span>
+                </div>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="manifest">
+        <div class="screen-title">
+          <h3>8. AI Summary Pages Enabled</h3>
+          <p>Manifest pages stay compatible with compression.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps"><span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step active"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main">
+              <div class="list-top"><strong>4 of 100 PDFs added</strong><span class="button small">Add PDFs</span></div>
+              <ul class="pdf-list">
+                <li class="pdf-row"><span class="row-num">1</span><span class="file-name">bank_statement_january.pdf <span class="file-size">18.4 MB</span></span><span class="pill">12 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">2</span><span class="file-name">bank_statement_february.pdf <span class="file-size">17.8 MB</span></span><span class="pill">11 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">3</span><span class="file-name">email_export_part_1.pdf <span class="file-size">9.2 MB</span></span><span class="pill">80 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">4</span><span class="file-name">receipts.pdf <span class="file-size">31.5 MB</span></span><span class="pill">26 Pages</span><button class="remove">×</button></li>
+              </ul>
+            </main>
+            <footer class="footer">
+              <div class="footer-stack">
+                <div class="option"><span class="check on"></span><div><div class="option-title">Add source summary pages for AI review</div><p class="option-copy">Adds 1 overview page and 1 summary page before each PDF.</p></div></div>
+                <div class="option"><span class="check"></span><div><div class="option-title">Reduce file size after merge</div></div></div>
+                <div class="footer-bottom"><span class="estimate ready">Estimated output: 134 pages including 5 summary pages</span><span class="spacer"></span><span class="button primary">Merge PDFs</span></div>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="merge-compress">
+        <div class="screen-title">
+          <h3>9. Merge & Compress</h3>
+          <p>Compression is a post-merge output option.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header">
+              <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+              <div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div>
+              <span class="version">Version 1.0 (1)</span>
+            </header>
+            <div class="steps"><span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step active"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main">
+              <div class="list-top"><strong>4 of 100 PDFs added</strong><span class="button small">Add PDFs</span></div>
+              <ul class="pdf-list">
+                <li class="pdf-row"><span class="row-num">1</span><span class="file-name">bank_statement_january.pdf <span class="file-size">18.4 MB</span></span><span class="pill">12 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">2</span><span class="file-name">bank_statement_february.pdf <span class="file-size">17.8 MB</span></span><span class="pill">11 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">3</span><span class="file-name">email_export_part_1.pdf <span class="file-size">9.2 MB</span></span><span class="pill">80 Pages</span><button class="remove">×</button></li>
+                <li class="pdf-row"><span class="row-num">4</span><span class="file-name">receipts.pdf <span class="file-size">31.5 MB</span></span><span class="pill">26 Pages</span><button class="remove">×</button></li>
+              </ul>
+            </main>
+            <footer class="footer">
+              <div class="footer-stack">
+                <div class="option"><span class="check on"></span><div><div class="option-title">Add source summary pages for AI review</div><p class="option-copy">Adds overview and per-document summary pages.</p></div></div>
+                <div class="option"><span class="check on"></span><div><div class="option-title">Reduce file size after merge <span class="select">Balanced</span></div><p class="option-copy">Size estimate is measured after the merged PDF is created locally.</p></div></div>
+                <div class="footer-bottom"><span class="estimate ready">Estimated output: 134 pages including 5 summary pages</span><span class="spacer"></span><span class="button primary">Merge & Compress</span></div>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="merge-processing">
+        <div class="screen-title">
+          <h3>10. Merge Processing</h3>
+          <p>Phase one when Merge & Compress is enabled.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header"><img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon"><div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div><span class="version">Version 1.0 (1)</span></header>
+            <div class="steps"><span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step active"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main processing">
+              <div class="processing-card">
+                <h4>Merging PDFs...</h4>
+                <p>File 2 of 4</p>
+                <div class="progress"><span style="width:42%"></span></div>
+                <p>Stitching and structural alignment for 'bank_statement_february.pdf'...</p>
+              </div>
+            </main>
+            <footer class="footer"><div class="footer-bottom" style="border-top:0;padding-top:0;"><span class="estimate">Preparing local output. No files are uploaded.</span><span class="spacer"></span><span class="button">Cancel</span></div></footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="compress-processing">
+        <div class="screen-title">
+          <h3>11. Compressing After Merge</h3>
+          <p>Phase two after the merged PDF exists locally.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header"><img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon"><div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div><span class="version">Version 1.0 (1)</span></header>
+            <div class="steps"><span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step active"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main processing">
+              <div class="processing-card">
+                <h4>Reducing file size...</h4>
+                <div class="progress"><span style="width:74%"></span></div>
+                <p>Creating an optimized local copy of the merged PDF.</p>
+              </div>
+            </main>
+            <footer class="footer"><div class="footer-bottom" style="border-top:0;padding-top:0;"><span class="estimate">Original merged size: 76.9 MB</span><span class="spacer"></span><span class="button">Cancel</span></div></footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="merge-success">
+        <div class="screen-title">
+          <h3>12. Merge Success</h3>
+          <p>Current success screen for merge-only output.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header"><img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon"><div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div><span class="version">Version 1.0 (1)</span></header>
+            <div class="steps"><span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step active"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main success">
+              <div class="success-card">
+                <span class="success-mark">✓</span>
+                <div><h4>Merged PDF saved</h4><p>Saved 'Locally_Stitched_Document.pdf' with 134 pages.<br>No files were uploaded.</p></div>
+                <span class="button">Show in Finder</span>
+              </div>
+            </main>
+            <footer class="footer"><div class="footer-bottom" style="border-top:0;padding-top:0;"><span class="estimate ready" style="color:var(--green)">Operation Finished</span><span class="spacer"></span><span class="button primary">Start New Task</span></div></footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="compress-success">
+        <div class="screen-title">
+          <h3>13. Compress-Only Success</h3>
+          <p>One-file task outcome with measured savings.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header"><img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon"><div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div><span class="version">Version 1.0 (1)</span></header>
+            <div class="steps"><span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step active"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main success">
+              <div class="success-card">
+                <span class="success-mark">✓</span>
+                <div><h4>Compressed PDF saved</h4><p>Saved 'bank_statement_january_compressed.pdf'.<br>Original: 18.4 MB · New: 12.1 MB · Saved: 34%<br>No files were uploaded.</p></div>
+                <span class="button">Show in Finder</span>
+              </div>
+            </main>
+            <footer class="footer"><div class="footer-bottom" style="border-top:0;padding-top:0;"><span class="estimate ready" style="color:var(--green)">Operation Finished</span><span class="spacer"></span><span class="button primary">Start New Task</span></div></footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="combined-success">
+        <div class="screen-title">
+          <h3>14. Merge & Compress Success</h3>
+          <p>Combined workflow shows pages and size reduction.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header"><img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon"><div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div><span class="version">Version 1.0 (1)</span></header>
+            <div class="steps"><span class="step"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step active"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main success">
+              <div class="success-card">
+                <span class="success-mark">✓</span>
+                <div><h4>Merged and compressed PDF saved</h4><p>Saved 'Locally_Stitched_Document.pdf' with 134 pages.<br>Merged size: 76.9 MB · Final: 44.2 MB · Saved: 43%<br>No files were uploaded.</p></div>
+                <span class="button">Show in Finder</span>
+              </div>
+            </main>
+            <footer class="footer"><div class="footer-bottom" style="border-top:0;padding-top:0;"><span class="estimate ready" style="color:var(--green)">Operation Finished</span><span class="spacer"></span><span class="button primary">Start New Task</span></div></footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="app-info">
+        <div class="screen-title">
+          <h3>15. App Info Sheet</h3>
+          <p>Existing info sheet with updated product copy.</p>
+        </div>
+        <div class="mac-window">
+          <div class="window-chrome"><span class="traffic red"></span><span class="traffic yellow"></span><span class="traffic green"></span><span class="chrome-title">Local Stitch</span></div>
+          <div class="app">
+            <header class="app-header"><img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon"><div class="brand"><h4>Local Stitch</h4><span>Private PDF merging and file size reduction for your Mac. No uploads.</span></div><span class="version">Version 1.0 (1)</span></header>
+            <div class="steps"><span class="step active"><span class="step-dot">1</span>Add PDFs</span><span class="chevron">›</span><span class="step"><span class="step-dot">2</span>Arrange / Options</span><span class="chevron">›</span><span class="step"><span class="step-dot">3</span>Save</span><span class="limit">Up to 100 PDFs</span></div>
+            <main class="main modal-overlay">
+              <div class="modal">
+                <img class="app-icon" src="../Local%20Stitch/Assets.xcassets/AppIcon.appiconset/local-stitch-512.png" alt="Local Stitch app icon">
+                <h4>Local Stitch</h4>
+                <p>Version 1.0 (1)</p>
+                <p>Private PDF merging and file size reduction for your Mac. No uploads.</p>
+                <hr>
+                <dl class="info-grid">
+                  <dt>Developer</dt><dd>Mangla &amp; Co LLC</dd>
+                  <dt>Support</dt><dd>developer@moeed.com</dd>
+                  <dt>Privacy</dt><dd>moeed.com/privacy</dd>
+                  <dt>License</dt><dd>MIT License</dd>
+                </dl>
+                <div class="modal-actions">
+                  <span class="button">Privacy Policy</span>
+                  <span class="button">Contact Support</span>
+                  <span class="button">Company Page</span>
+                </div>
+                <div class="modal-actions">
+                  <span class="button primary">Done</span>
+                </div>
+              </div>
+            </main>
+            <footer class="footer"><div class="footer-bottom" style="border-top:0;padding-top:0;"><span class="estimate">Estimated output: 0 pages</span><span class="spacer"></span><span class="button primary disabled">Merge PDFs</span></div></footer>
+          </div>
+        </div>
+      </section>
+
+      <section class="notes">
+        <p><strong>Open questions:</strong> Should one-file compression default on? Should compressed copies of password-protected PDFs be saved without password protection, matching the current merge behavior? Should "Balanced" and "Smallest PDF" both ship if PDFKit results are not meaningfully different?</p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
